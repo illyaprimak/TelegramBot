@@ -9,6 +9,12 @@ keyboard1.row('Де я?')
 def start_message(message):
     bot.send_message(message.chat.id, 'Доброго дня, козаче! Я бот що здає в аренду електросамокати та велосипеди. Якщо хочешь щось від мене, то натискай на кнопки))0)0)', reply_markup=keyboard1)
 
+
+@bot.message_handler(commands=['help'])
+def start_message(message):
+    bot.send_message(message.chat.id, 'Пиши /start і починай роботу!', reply_markup=keyboard1)
+
+
 @bot.message_handler(content_types=['text'])
 def send_text(message):
     if message.text.lower() == 'привіт':
@@ -23,4 +29,4 @@ def send_text(message):
 def sticker_id(message):
     print(message)
 
-bot.polling()
+bot.polling(none_stop=True, interval=0)
