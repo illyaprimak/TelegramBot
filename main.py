@@ -2,7 +2,8 @@ import telebot
 
 bot = telebot.TeleBot('1198725614:AAECjKvTD7fpK_rO21vxsBpNYwKgJJluxC8')
 keyboard1 = telebot.types.ReplyKeyboardMarkup()
-keyboard1.row('Привет', 'Пока')
+keyboard1.row('Привіт', 'Бувай')
+keyboard1.row('Де я?')
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
@@ -10,12 +11,13 @@ def start_message(message):
 
 @bot.message_handler(content_types=['text'])
 def send_text(message):
-    if message.text.lower() == 'привет':
-        bot.send_message(message.chat.id, 'Категорично вас вітаю!')
-    elif message.text.lower() == 'пока':
+    if message.text.lower() == 'привіт':
+        bot.send_message(message.chat.id, 'Категорично вас вітаю пане, ' + message.from_user.first_name)
+    elif message.text.lower() == 'бувай':
         bot.send_message(message.chat.id, 'Допобачення')
-    elif message.text.lower() == 'я тебя люблю':
-        bot.send_location(message.chat.id, 49.33273504,17.61087799)
+    elif message.text.lower() == 'де я?':
+        bot.send_message(message.chat.id, 'Ось ти де')
+        bot.send_location(message.chat.id, 49.33273504 , 17.61087799)
 
 @bot.message_handler(content_types=['sticker'])
 def sticker_id(message):
