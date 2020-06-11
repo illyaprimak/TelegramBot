@@ -1,6 +1,6 @@
 import telebot
 import psycopg2
-import Customer
+import User
 from telebot import types
 
 authorization = 0
@@ -88,7 +88,7 @@ def send_text(message):
         bot.send_message(message.chat.id, 'Тебе успішно авторизовано!) ')
         global surname
         surname = message.text
-        user = Customer.User(name, surname, message.from_user.id)
+        user = User.User(name, surname, message.from_user.id)
         user.add()
         authorization = 0
     else:
