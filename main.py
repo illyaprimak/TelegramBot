@@ -24,20 +24,35 @@ bot = telebot.TeleBot('1198725614:AAECjKvTD7fpK_rO21vxsBpNYwKgJJluxC8')
 keyboard1 = telebot.types.ReplyKeyboardMarkup()
 keyboard1.row('Привіт', 'Бувай')
 keyboard1.row('Де я?')
-keyboard1.row('/autorization')
+keyboard1.row('/autorization', '/users', '/geophone')
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
     bot.send_message(message.chat.id, 'Доброго дня, козаче! Я бот що здає в аренду електросамокати та велосипеди. Якщо хочешь щось від мене, то натискай на кнопки))0)0)', reply_markup=keyboard1)
 
 @bot.message_handler(commands=['autorization'])
-def start_message(message):
+def autorization(message):
     bot.send_message(message.chat.id, 'Авторизація. Напиши мені своє ім\'я', reply_markup=keyboard1)
     global autorization
     autorization = 1
 
+@bot.message_handler(commands=['users'])
+def users(message):
+    conn = psycopg2.connect(dbname='dcur3f5qg9nbp9', user='tbhawhpdqppahx',
+                            password='2a58a610fa0064b79d45735606512a9994a9c43a4b2ba30dc3467ae3c375af26',
+                            host='ec2-18-232-143-90.compute-1.amazonaws.com')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM users')
+    records = cursor.fetchall()
+
+    for i in range(len(records)):
+        bot.send_message(message.chat.id, '%s користувач: %s, %s, %s' % (i+1,records[i][1],records[i][2],records[i][0]), reply_markup=keyboard1)
+
+    cursor.close()
+    conn.close()
+
 @bot.message_handler(commands=['help'])
-def start_message(message):
+def help(message):
     bot.send_message(message.chat.id, 'Пиши /start і починай роботу!', reply_markup=keyboard1)
 
 
