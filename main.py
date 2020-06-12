@@ -11,7 +11,68 @@ controller = Controller("d6ib69jeupvh36", "szvriplnadxleq",
                         "3f6a5c41af6e1ea4a4cc136566588d23fc243823e23a4c2498de18c01865ac3a",
                         "ec2-34-197-188-147.compute-1.amazonaws.com")
 
-controller.close()
+bot = telebot.TeleBot('1198725614:AAECjKvTD7fpK_rO21vxsBpNYwKgJJluxC8')
+
+state = ""
+
+
+@bot.message_handler(content_types=['text'])
+def send_text(message):
+    global state
+    user = User.User(message.from_user.id)
+
+    if state == "name":
+        bot.send_message(message.chat.id, 'Enter your name')
+        user.name = message.text
+        state = "surname"
+    elif state == "surname":
+        bot.send_message(message.chat.id, 'Enter your name')
+        user.name = message.text
+        state = "number"
+        keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+        number_button = types.KeyboardButton(text="Send number", request_contact=True)
+        keyboard.add(number_button)
+
+@bot.message_handler(content_types=['contact'])
+def report(message):
+    print(message)
+
+# else:
+#     if message.text.lower() == 'привіт':
+#         bot.send_message(message.chat.id, 'Категорично вас вітаю пане, ' + message.from_user.first_name)
+#     elif message.text.lower() == 'бувай':
+#         bot.send_message(message.chat.id, 'Допобачення')
+#     elif message.text.lower() == 'де я?':
+#         bot.send_message(message.chat.id, 'Ось ти де')
+#         bot.send_location(message.chat.id, 49.33273504, 17.61087799)
+
+
+@bot.callback_query_handler(lambda query: query.data == "register")
+def register():
+    global state
+    state = "name"
+
+
+@bot.message_handler(commands=['start'])
+def start_message(message):
+    users = controller.user_exists(message.from_user.id)
+    if len(users) == 0:
+        keyboard = types.InlineKeyboardMarkup()
+        yes_button = types.InlineKeyboardButton(text="Yes", callback_data="register")
+        keyboard.add(yes_button)
+
+        bot.send_message(message.chat.id,
+                         'Hello, it seems you are not registered.\nDo you want to register?',
+                         reply_markup=keyboard)
+
+    else:
+        bot.send_message(message.chat.id,
+                         'Hello, ' + users[0][1])
+
+
+bot.polling(none_stop=True, interval=0)
+
+# controller.close()
 
 # authorization = 0
 # name = ''
