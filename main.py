@@ -123,27 +123,42 @@ def user_location(message):
     try:
         locator = Nominatim(user_agent="myGeocoder")
         location = locator.reverse(str(message.location.latitude) + ", " + str(message.location.longitude))
-        print(location.raw)
-        current_user.country = location.raw['address']['country']
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        keyboard.row(
+            telebot.types.InlineKeyboardButton("Choose", callback_data="getdate")
+        )
         try:
+            current_user.country = location.raw['address']['country']
             current_user.city = location.raw['address']['city']
+
+            bot.send_message(
+                message.chat.id, "Choose your birthday date", reply_markup=keyboard
+            )
 
         except KeyError:
             try:
                 current_user.city = location.raw['address']['village']
 
+                bot.send_message(
+                    message.chat.id, "Choose your birthday date", reply_markup=keyboard
+                )
+
             except KeyError:
-                current_user.city = location.raw['address']['road']
+                try:
+                    current_user.city = location.raw['address']['road']
+
+                    bot.send_message(
+                        message.chat.id, "Choose your birthday date", reply_markup=keyboard
+                    )
+
+                except KeyError:
+                    bot.send_message(message.chat.id, "Couldn't find your location, try again")
+                    bot.register_next_step_handler(message, user_location)
 
 
 
-        keyboard = telebot.types.InlineKeyboardMarkup()
-        keyboard.row(
-            telebot.types.InlineKeyboardButton("Choose", callback_data="getdate")
-        )
-        bot.send_message(
-            message.chat.id, "Choose your birthday date", reply_markup=keyboard
-        )
+
+
     except AttributeError:
        bot.send_message(message.chat.id, "Wrong input, try again")
        bot.register_next_step_handler(message, user_location)
