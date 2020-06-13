@@ -1,11 +1,24 @@
 class User(object):
 
-    def __init__(self, identifier, name, surname, number, birth_date, country, city, bonus_points):
-        self.identifier = identifier
+    def __init__(self, state ):
+        self.identifier = 0
+        self.name = ""
+        self.surname = ""
+        self.number = 0
+        self.birth_date = ""
+        self.country = ""
+        self.city = ""
+        self.bonus_points = 0
+        self.state = state
+
+    def change_state(self):
+        self.state = self.state + 1
+
+    def set_name(self, name):
         self.name = name
-        self.surname = surname
-        self.number = number
-        self.birth_date = birth_date
-        self.country = country
-        self.city = city
-        self.bonus_points = bonus_points
+
+    def get_name(self):
+        return self.name
+
+    def get_state(self):
+        return self.state
