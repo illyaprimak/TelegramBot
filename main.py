@@ -26,6 +26,25 @@ def register2(query):
 
 
 
+@bot.message_handler(func=lambda message: user.get_state() == 1)
+def user_entering_name(message):
+        # В случае с именем не будем ничего проверять, пусть хоть "25671", хоть Евкакий
+        bot.send_message(message.chat.id, "1")
+        user.set_name(message.text)
+        user.change_state()
+        print(user.get_name())
+
+
+
+@bot.message_handler(func=lambda message: user.get_state() == 2)
+def user_entering_name(message):
+        # В случае с именем не будем ничего проверять, пусть хоть "25671", хоть Евкакий
+        bot.send_message(message.chat.id, "2")
+        user.change_state()
+        print(user.get_name())
+        print(str(user))
+
+
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
@@ -45,14 +64,6 @@ def start_message(message):
                          'Hello, ' + users[0][1])
 
 
-@bot.message_handler(func=lambda message : user.get_state())
-def user_entering_name(message):
-    # В случае с именем не будем ничего проверять, пусть хоть "25671", хоть Евкакий
-    bot.send_message(message.chat.id, "Отличное имя, запомню! Теперь укажи, пожалуйста, свой возраст.")
-    user.change_state()
-    print(user.get_name())
-    global astate
-    astate = 0
 
 
 @bot.message_handler(content_types=['text'])
