@@ -26,8 +26,12 @@ current_user = User.User()
 def start_message(message):
     users = controller.user_exists(message.from_user.id)
     if len(users) == 0:
-        keyboard = types.ReplyKeyboardMarkup()
-        keyboard.row('/register')
+        global current_user
+        current_user = User.User()
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        keyboard.row(
+            telebot.types.InlineKeyboardButton("Register", callback_data="register")
+        )
         bot.send_message(message.chat.id,
                          'Hello, it seems you are not registered.\nDo you want to register?',
                          reply_markup=keyboard)
@@ -36,12 +40,14 @@ def start_message(message):
                          'Hello, ' + users[0][1])
 
 
-@bot.message_handler(commands=['register'])
-def register(message):
-    current_user.identifier = message.from_user.id
+@bot.callback_query_handler(func=lambda call: call.data.startswith("register"))
+def register(call):
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    current_user.identifier = call.message.from_user.id
     current_user.bonus_points = 0
 
-    message = bot.send_message(message.chat.id, "Enter your name", reply_markup=None)
+    message = bot.send_message(call.message.chat.id, "Enter your name", reply_markup=None)
 
     bot.register_next_step_handler(message, user_name)
 
@@ -110,6 +116,8 @@ def callback_inline(call: CallbackQuery):
         bot=bot, call=call, name=name, action=action, year=year, month=month, day=day
     )
     if action == "DAY":
+        message = bot.send_message(call.message.chat.id, "You are successfully registered")
+        bot.register_next_step_handler(message, default)
         current_user.birth_date = date
     elif action == "CANCEL":
         keyboard = telebot.types.InlineKeyboardMarkup()
