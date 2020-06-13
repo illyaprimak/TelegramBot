@@ -9,13 +9,3 @@ class User(object):
         self.country = country
         self.city = city
         self.bonus_points = bonus_points
-
-    def __init__(self, identifier):
-        self.identifier = identifier
-        self.name = ""
-        self.surname = ""
-        self.number = ""
-        self.birth_date = ""
-        self.country = ""
-        self.city = ""
-        self.bonus_points = 0
