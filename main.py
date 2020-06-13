@@ -1,4 +1,5 @@
 import telebot
+import re
 import datetime
 import geopy
 import telebot_calendar
@@ -20,7 +21,7 @@ controller = Controller("d6ib69jeupvh36", "szvriplnadxleq",
 bot = telebot.TeleBot('1198725614:AAECjKvTD7fpK_rO21vxsBpNYwKgJJluxC8')
 
 current_user = User.User()
-
+registration = 0
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
@@ -42,6 +43,7 @@ def start_message(message):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("register"))
 def register(call):
+    registration = 1
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     current_user.identifier = call.message.from_user.id
@@ -59,51 +61,93 @@ def default(message):
 
 def user_name(message):
     current_user.name = message.text
-
-    message = bot.send_message(message.chat.id, "Enter your surname")
-
-    bot.register_next_step_handler(message, user_surname)
+    if current_user.name is None:
+        bot.send_message(message.chat.id, "Wrong input, try again")
+        bot.register_next_step_handler(message, user_name)
+    else:
+        message = bot.send_message(message.chat.id, "Enter your surname")
+        bot.register_next_step_handler(message, user_surname)
 
 
 def user_surname(message):
+
     current_user.surname = message.text
+    if current_user.surname is None:
+        bot.send_message(message.chat.id, "Wrong input, try again")
+        bot.register_next_step_handler(message, user_surname)
+    else:
+        keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+        send_button = types.KeyboardButton(text="Send", request_contact=True)
+        keyboard.add(send_button)
 
-    keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-    send_button = types.KeyboardButton(text="Send", request_contact=True)
-    keyboard.add(send_button)
+        message = bot.send_message(message.chat.id, "Send your phone number", reply_markup=keyboard)
 
-    message = bot.send_message(message.chat.id, "Send your phone number", reply_markup=keyboard)
-
-    bot.register_next_step_handler(message, user_contact)
+        bot.register_next_step_handler(message, user_contact)
 
 
-@bot.message_handler(content_types=['contact'])
+@bot.message_handler(content_types=['contact','text'],func=lambda message: registration)
 def user_contact(message):
-    current_user.number = message.contact.phone_number
+    try:
+        current_user.number = message.contact.phone_number
+        print(current_user.number)
+        keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+        send_button = types.KeyboardButton(text="Send", request_location=True)
+        keyboard.add(send_button)
+        message = bot.send_message(message.chat.id, 'Send your location',
+                                   reply_markup=keyboard)
 
-    keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-    send_button = types.KeyboardButton(text="Send", request_location=True)
-    keyboard.add(send_button)
-    message = bot.send_message(message.chat.id, 'Send your location',
-                               reply_markup=keyboard)
+        bot.register_next_step_handler(message, user_location)
 
-    bot.register_next_step_handler(message, user_location)
+    except AttributeError:
+        try:
+            pattern = re.compile("\+\d{12}|\d{12}|\d{10}")
+            if(pattern.fullmatch(message.text)):
+                current_user.number = message.text
+                keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+                send_button = types.KeyboardButton(text="Send", request_location=True)
+                keyboard.add(send_button)
+                message = bot.send_message(message.chat.id, 'Send your location',
+                                           reply_markup=keyboard)
+
+                bot.register_next_step_handler(message, user_location)
+            else:
+                bot.send_message(message.chat.id, "Wrong pattern, try again")
+                bot.register_next_step_handler(message, user_contact)
+        except AttributeError:
+            bot.send_message(message.chat.id, "Wrong input, try again")
+            bot.register_next_step_handler(message, user_contact)
 
 
-@bot.message_handler(content_types=['location'])
+@bot.message_handler(content_types=['location'],func=lambda message: registration)
 def user_location(message):
-    locator = Nominatim(user_agent="myGeocoder")
-    location = locator.reverse(str(message.location.latitude) + ", " + str(message.location.longitude))
-    current_user.country = location.raw['address']['country']
-    current_user.city = location.raw['address']['city']
+    try:
+        locator = Nominatim(user_agent="myGeocoder")
+        location = locator.reverse(str(message.location.latitude) + ", " + str(message.location.longitude))
+        print(location.raw)
+        current_user.country = location.raw['address']['country']
+        try:
+            current_user.city = location.raw['address']['city']
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    keyboard.row(
-        telebot.types.InlineKeyboardButton("Choose", callback_data="getdate")
-    )
-    bot.send_message(
-        message.chat.id, "Choose your birthday date", reply_markup=keyboard
-    )
+        except KeyError:
+            try:
+                current_user.city = location.raw['address']['village']
+
+            except KeyError:
+                current_user.city = location.raw['address']['road']
+
+
+
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        keyboard.row(
+            telebot.types.InlineKeyboardButton("Choose", callback_data="getdate")
+        )
+        bot.send_message(
+            message.chat.id, "Choose your birthday date", reply_markup=keyboard
+        )
+    except AttributeError:
+       bot.send_message(message.chat.id, "Wrong input, try again")
+       bot.register_next_step_handler(message, user_location)
+
 
 
 calendar = CallbackData("calendar_1", "action", "year", "month", "day")
@@ -119,6 +163,9 @@ def callback_inline(call: CallbackQuery):
         message = bot.send_message(call.message.chat.id, "You are successfully registered")
         bot.register_next_step_handler(message, default)
         current_user.birth_date = date
+        global registration
+        registration = 0
+
     elif action == "CANCEL":
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
