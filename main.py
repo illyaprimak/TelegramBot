@@ -29,6 +29,7 @@ bot = telebot.TeleBot('1198725614:AAECjKvTD7fpK_rO21vxsBpNYwKgJJluxC8')
 current_user = User.User()
 current_employee = Employee.Employee()
 all_scooters = []
+
 for vehicle in controller.get_all("vehicle"):
     all_scooters.append(
         Vehicle.Vehicle(vehicle[0], vehicle[1], vehicle[2], vehicle[3], vehicle[4], vehicle[5], vehicle[6], vehicle[7],
@@ -57,6 +58,7 @@ def start_message(message):
             telebot.types.InlineKeyboardButton("Like employee 💩", callback_data="register_emp")
         )
 
+
         bot.send_message(message.chat.id,
                          '👋 Hello, it seems you are not registered.\nDo you want to register?',
                          reply_markup=keyboard)
@@ -66,25 +68,39 @@ def start_message(message):
         for card in controller.get_cards(current_user):
             current_user.cards.append(card[0])
             current_user.cards.append(card[1])
-
+        global authorized
+        authorized = bool(True)
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
             telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters")
         )
-        bot.send_message(message.chat.id,
-                         '👋 Hello, ' + current_user.name, reply_markup=keyboard)
+        bot.send_message(message.chat.id, '👋 Hello, ' + current_user.name, reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "nearest_scooters")
 def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
-    keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+    keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=bool(True))
     keyboard.add(types.KeyboardButton(text="Send 📍", request_location=True))
     message = bot.send_message(call.message.chat.id,
                                'First, provide your location so we could find nearest variants for you 📍',
                                reply_markup=keyboard)
     bot.register_next_step_handler(message, current_user_location)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("send_scooter_location"))
+def send_scooter_location(call):
+    bot.answer_callback_query(call.id)
+    latitude = float(call.data.split('|')[1])
+    longitude = float(call.data.split('|')[2])
+    bot.send_message(call.message.chat.id, "Chosen scooter's coordinates 📍\nCode to ride: " + call.data.split('|')[3],
+                     reply_markup=ReplyKeyboardRemove())
+    bot.send_location(
+        chat_id=call.message.chat.id,
+        latitude=latitude,
+        longitude=longitude
+    )
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "register")
@@ -98,6 +114,7 @@ def register(call):
 
     message = bot.send_message(call.message.chat.id, "Enter your name ✏")
     bot.register_next_step_handler(message, user_name)
+
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "register_emp")
@@ -132,10 +149,20 @@ def register(call):
     bot.send_message(call.message.chat.id, "Cool , you are registered as repairer")
 
 @bot.message_handler(content_types=['text'])
+
+@bot.message_handler()
 def default(message):
-    bot.send_message(message.chat.id, "Please use the menu 📋")
+    if len(controller.user_exists(message.from_user.id)) > 0:
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        keyboard.row(
+            telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters")
+        )
+        bot.send_message(message.chat.id, text="Please use the menu 📋", reply_markup=keyboard)
+    else:
+        bot.send_message(message.chat.id, "Please use the menu 📋")
 
 
+@bot.message_handler(content_types=['text'])
 def user_name(message):
     if message.text is None:
         bot.send_message(message.chat.id, "Wrong input, try again ❌")
@@ -175,7 +202,7 @@ def user_card(message):
         else:
             message = bot.send_message(message.chat.id, "Registration finished ✅")
             insert_user()
-            bot.register_next_step_handler(message, default)
+            bot.register_for_reply(message, default)
     elif len(message.text) > 15:
         bot.send_message(message.chat.id, "Card name is too long, try again ❌")
         bot.register_next_step_handler(message, user_card)
@@ -195,7 +222,7 @@ def register(call):
     bot.delete_message(call.message.chat.id, call.message.message_id)
     message = bot.send_message(call.message.chat.id, "Registration finished ✅")
     insert_user()
-    bot.register_next_step_handler(message, default)
+    bot.register_for_reply(message, default)
 
 
 @bot.message_handler(content_types=['contact', 'text'])
@@ -232,17 +259,36 @@ def default(message):
 
 
 def current_user_location(message):
-    latitude = message.location.latitude
-    longitude = message.location.longitude
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    for scooter in all_scooters:
-        keyboard.row().add(telebot.types.InlineKeyboardButton("🛴 " +
-                                                              str(round(geodesic((latitude, longitude),
-                                                                                 (scooter.latitude,
-                                                                                  scooter.longitude)).meters)) + "m " + str(
-            scooter.charge_level) + " " + str(scooter.cents_per_minute) + " ¢/min",
-                                                              callback_data="register"))
-    bot.send_message(message.chat.id, "Nearest scooters", reply_markup=keyboard)
+    try:
+        latitude = message.location.latitude
+        longitude = message.location.longitude
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        scooters = []
+
+        def get_first(elem):
+            return elem[0]
+
+        for scooter in all_scooters:
+            scooters.append([round(geodesic((latitude, longitude), (scooter.latitude, scooter.longitude)).meters),
+                             scooter])
+        scooters.sort(key=get_first)
+
+        del scooters[3:]
+
+        for scooter in scooters:
+            scooter = scooter[1]
+            keyboard.row().add(
+                telebot.types.InlineKeyboardButton(
+                    "🛴 🗺️ " + str(
+                        round(geodesic((latitude, longitude), (scooter.latitude, scooter.longitude)).meters)) +
+                    "m 🔋 " + str(scooter.charge_level) + "% "
+                    + str(scooter.cents_per_minute) + "¢/min",
+                    callback_data="send_scooter_location|" + str(scooter.latitude) + "|" + str(
+                        scooter.longitude) + "|" + str(scooter.identifier)))
+        bot.send_message(message.chat.id, "Nearest scooters", reply_markup=keyboard)
+    except AttributeError:
+        bot.send_message(message.chat.id, "Wrong input, try again ❌")
+        bot.register_next_step_handler(message, current_user_location)
 
 
 def user_location(message):
