@@ -2,6 +2,7 @@ import psycopg2
 
 import User
 import Employee
+import Card
 
 
 class Controller(object):
@@ -16,13 +17,16 @@ class Controller(object):
 
     def insert(self, instance):
         if type(instance) == User.User:
-            self.cursor.execute("INSERT INTO customer VALUES(%s, %s, %s, %s, %s, %s, %s, %s)",
+            self.cursor.execute("INSERT INTO user_customer VALUES(%s, %s, %s, %s, %s, %s, %s, %s)",
                                 (instance.identifier, instance.name, instance.surname,
                                  instance.number, instance.birth_date,
                                  instance.country, instance.city, instance.bonus_points))
         elif type(instance) == Employee.Employee:
             self.cursor.execute("INSERT INTO employee VALUES(%s, %s)",
                                 (instance.identifier, instance.specialization))
+        elif type(instance) == Card.Card:
+            self.cursor.execute("INSERT INTO card (name, user_id) VALUES(%s, %s)",
+                                (instance.name, instance.owner))
         self.conn.commit()
 
     def get_all(self, table_name):
@@ -30,9 +34,13 @@ class Controller(object):
         return self.cursor.fetchall()
 
     def user_exists(self, identifier):
-        self.cursor.execute('SELECT * FROM customer WHERE user_id = ' + str(identifier))
+        self.cursor.execute('SELECT * FROM user_customer WHERE user_id = ' + str(identifier))
         return self.cursor.fetchall()
 
     def employee_exists(self, identifier):
         self.cursor.execute('SELECT * FROM employee WHERE employee_id = ' + str(identifier))
+        return self.cursor.fetchall()
+
+    def get_cards(self, user):
+        self.cursor.execute('SELECT * FROM card WHERE user_id = ' + str(user.identifier))
         return self.cursor.fetchall()
