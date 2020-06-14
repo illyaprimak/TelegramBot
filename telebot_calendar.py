@@ -195,12 +195,31 @@ def create_calendar(
 
     keyboard.add(
         InlineKeyboardButton(
-            "< Previus year", callback_data=calendar_callback.new("PREVIOUS-YEAR", year, month, "!")
+            "< 1 year", callback_data=calendar_callback.new("PREVIOUS-YEAR", year, month, "!")
+        ),
+
+        InlineKeyboardButton(
+            "1 year >", callback_data=calendar_callback.new("NEXT-YEAR", year, month, "!")
+        )
+    )
+
+    keyboard.add(
+        InlineKeyboardButton(
+            "<< 5 years", callback_data=calendar_callback.new("PREVIOUS-YEAR_5", year, month, "!")
         ),
         InlineKeyboardButton(
-            "Next year >", callback_data=calendar_callback.new("NEXT-YEAR", year, month, "!")
-        ),
+            "5 years >>", callback_data=calendar_callback.new("NEXT-YEAR_5", year, month, "!")
+        )
     )
+    keyboard.add(
+        InlineKeyboardButton(
+            "<<< 10 years", callback_data=calendar_callback.new("PREVIOUS-YEAR_10", year, month, "!")
+        ),
+        InlineKeyboardButton(
+            "10 years >>>", callback_data=calendar_callback.new("NEXT-YEAR_10", year, month, "!")
+        )
+    )
+
 
     return keyboard
 
@@ -326,6 +345,52 @@ def calendar_query_handler(
         return None
     elif action == "NEXT-YEAR":
         next_year = current + datetime.timedelta(days=365)
+        bot.edit_message_text(
+            text=call.message.text,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            reply_markup=create_calendar(
+                name=name, year=int(next_year.year), month=int(next_year.month)
+            ),
+        )
+        return None
+    elif action == "PREVIOUS-YEAR_5":
+        previous_year = current - datetime.timedelta(days=1826)
+        bot.edit_message_text(
+            text=call.message.text,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            reply_markup=create_calendar(
+                name=name, year=int(previous_year.year), month=int(previous_year.month)
+            ),
+        )
+        return None
+    elif action == "NEXT-YEAR_5":
+        next_year = current + datetime.timedelta(days=1856)
+        bot.edit_message_text(
+            text=call.message.text,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            reply_markup=create_calendar(
+                name=name, year=int(next_year.year), month=int(next_year.month)
+            ),
+        )
+        return None
+    elif action == "PREVIOUS-YEAR_10":
+        previous_year = current - datetime.timedelta(days=3652)
+        print(current)
+        bot.edit_message_text(
+            text=call.message.text,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            reply_markup=create_calendar(
+                name=name, year=int(previous_year.year), month=int(previous_year.month)
+            ),
+        )
+        return None
+    elif action == "NEXT-YEAR_10":
+        next_year = current + datetime.timedelta(days=3681)
+        print(current)
         bot.edit_message_text(
             text=call.message.text,
             chat_id=call.message.chat.id,

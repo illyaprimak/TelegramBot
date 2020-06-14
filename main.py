@@ -1,6 +1,7 @@
 import telebot
 import re
 import datetime
+from datetime import timedelta
 import geopy
 from geopy.distance import geodesic
 
@@ -260,12 +261,21 @@ def callback_inline(call: CallbackQuery):
         bot=bot, call=call, name=name, action=action, year=year, month=month, day=day
     )
     if action == "DAY":
-        current_user.birth_date = date
+        adult = timedelta(days=6575)
+        if(datetime.now() - adult) > date:
+            current_user.birth_date = date
 
-        keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=bool(True))
-        keyboard.add(types.KeyboardButton(text="Send ☎", request_contact=True))
-        message = bot.send_message(call.message.chat.id, "Send your phone number ☎", reply_markup=keyboard)
-        bot.register_next_step_handler(message, user_contact)
+            keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=bool(True))
+            keyboard.add(types.KeyboardButton(text="Send ☎", request_contact=True))
+            message = bot.send_message(call.message.chat.id, "Send your phone number ☎", reply_markup=keyboard)
+            bot.register_next_step_handler(message, user_contact)
+        else:
+            bot.send_message(call.from_user.id, "You are under eighteen, try again")
+            keyboard = telebot.types.InlineKeyboardMarkup()
+            keyboard.row(
+                telebot.types.InlineKeyboardButton("Choose", callback_data="getdate")
+            )
+            bot.send_message(call.from_user.id, "Choose your birthday date 📅", reply_markup=keyboard)
     elif action == "CANCEL":
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
