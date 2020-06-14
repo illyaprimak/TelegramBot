@@ -1,9 +1,10 @@
 import telebot
 import re
 import datetime
+from datetime import timedelta
 import geopy
 from geopy.distance import geodesic
-
+import Controller
 import Vehicle
 import Zone
 import telebot_calendar
@@ -26,6 +27,7 @@ controller = Controller("d6ib69jeupvh36", "szvriplnadxleq",
 bot = telebot.TeleBot('1198725614:AAECjKvTD7fpK_rO21vxsBpNYwKgJJluxC8')
 
 current_user = User.User()
+current_employee = Employee.Employee()
 all_scooters = []
 
 for vehicle in controller.get_all("vehicle"):
@@ -42,19 +44,26 @@ def insert_user():
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    users = controller.user_exists(message.from_user.id)
-    if len(users) == 0:
+    user = controller.user_exists(message.from_user.id)
+    employee = controller.employee_exists(message.from_user.id)
+    persons = user + employee
+    if len(persons) == 0:
         global current_user
         current_user = User.User()
+        global current_employee
+        current_employee = Employee.Employee()
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
-            telebot.types.InlineKeyboardButton("Register 🔑", callback_data="register")
+            telebot.types.InlineKeyboardButton("Like user 🔑", callback_data="register"),
+            telebot.types.InlineKeyboardButton("Like employee 💩", callback_data="register_emp")
         )
-        current_user.identifier = message.from_user.id
-        bot.send_message(message.chat.id, '👋 Hello, it seems you are not registered.\nDo you want to register?',
+
+
+        bot.send_message(message.chat.id,
+                         '👋 Hello, it seems you are not registered.\nDo you want to register?',
                          reply_markup=keyboard)
     else:
-        user = users[0]
+        user = user[0]
         current_user = User.User(user[0], user[1], user[2], user[3], user[4], user[5], user[6], user[7])
         for card in controller.get_cards(current_user):
             current_user.cards.append(card[0])
@@ -96,6 +105,7 @@ def send_scooter_location(call):
 
 @bot.callback_query_handler(func=lambda call: call.data == "register")
 def register(call):
+    current_user.identifier = call.from_user.id
     current_user.cards = []
     current_user.bonus_points = 0
 
@@ -105,6 +115,40 @@ def register(call):
     message = bot.send_message(call.message.chat.id, "Enter your name ✏")
     bot.register_next_step_handler(message, user_name)
 
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "register_emp")
+def register(call):
+    current_employee.identifier = call.from_user.id
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+
+    keyboard = telebot.types.InlineKeyboardMarkup()
+    keyboard.row(
+        telebot.types.InlineKeyboardButton("Charger ⚡", callback_data="charger"),
+        telebot.types.InlineKeyboardButton("Repairer 🔨", callback_data="repairer")
+    )
+
+    bot.send_message(call.message.chat.id, "You want to be charger or repairer ?",reply_markup=keyboard)
+
+@bot.callback_query_handler(func=lambda call: call.data == "charger")
+def register(call):
+    current_employee.specialization = False
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    controller.insert(current_employee)
+    bot.send_message(call.message.chat.id, "Cool , you are registered as charger")
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "repairer")
+def register(call):
+    current_employee.specialization = True
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    controller.insert(current_employee)
+    bot.send_message(call.message.chat.id, "Cool , you are registered as repairer")
+
+@bot.message_handler(content_types=['text'])
 
 @bot.message_handler()
 def default(message):
@@ -301,12 +345,21 @@ def callback_inline(call: CallbackQuery):
         bot=bot, call=call, name=name, action=action, year=year, month=month, day=day
     )
     if action == "DAY":
-        current_user.birth_date = date
+        adult = timedelta(days=6575)
+        if(datetime.now() - adult) > date:
+            current_user.birth_date = date
 
-        keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=bool(True))
-        keyboard.add(types.KeyboardButton(text="Send ☎", request_contact=True))
-        message = bot.send_message(call.message.chat.id, "Send your phone number ☎", reply_markup=keyboard)
-        bot.register_next_step_handler(message, user_contact)
+            keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=bool(True))
+            keyboard.add(types.KeyboardButton(text="Send ☎", request_contact=True))
+            message = bot.send_message(call.message.chat.id, "Send your phone number ☎", reply_markup=keyboard)
+            bot.register_next_step_handler(message, user_contact)
+        else:
+            bot.send_message(call.from_user.id, "You are under eighteen, try again")
+            keyboard = telebot.types.InlineKeyboardMarkup()
+            keyboard.row(
+                telebot.types.InlineKeyboardButton("Choose", callback_data="getdate")
+            )
+            bot.send_message(call.from_user.id, "Choose your birthday date 📅", reply_markup=keyboard)
     elif action == "CANCEL":
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
