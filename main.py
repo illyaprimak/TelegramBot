@@ -4,7 +4,7 @@ import datetime
 from datetime import timedelta
 import geopy
 from geopy.distance import geodesic
-
+import Controller
 import Vehicle
 import Zone
 import telebot_calendar
@@ -43,8 +43,10 @@ def insert_user():
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    users = controller.user_exists(message.from_user.id)
-    if len(users) == 0:
+    user = controller.user_exists(message.from_user.id)
+    employee = controller.employee_exists(message.from_user.id)
+    persons = user + employee
+    if len(persons) == 0:
         global current_user
         current_user = User.User()
         global current_employee
@@ -59,7 +61,7 @@ def start_message(message):
                          '👋 Hello, it seems you are not registered.\nDo you want to register?',
                          reply_markup=keyboard)
     else:
-        user = users[0]
+        user = user[0]
         current_user = User.User(user[0], user[1], user[2], user[3], user[4], user[5], user[6], user[7])
         for card in controller.get_cards(current_user):
             current_user.cards.append(card[0])
