@@ -2,6 +2,10 @@ import telebot
 import re
 import datetime
 import geopy
+from geopy.distance import geodesic
+
+import Vehicle
+import Zone
 import telebot_calendar
 import psycopg2
 import User
@@ -22,9 +26,14 @@ controller = Controller("d6ib69jeupvh36", "szvriplnadxleq",
 bot = telebot.TeleBot('1198725614:AAECjKvTD7fpK_rO21vxsBpNYwKgJJluxC8')
 
 current_user = User.User()
+all_scooters = []
+for vehicle in controller.get_all("vehicle"):
+    all_scooters.append(
+        Vehicle.Vehicle(vehicle[0], vehicle[1], vehicle[2], vehicle[3], vehicle[4], vehicle[5], vehicle[6], vehicle[7],
+                        vehicle[8]))
 
 
-def registration_handler():
+def insert_user():
     controller.insert(current_user)
     for card in current_user.cards:
         controller.insert(card)
@@ -40,17 +49,39 @@ def start_message(message):
         keyboard.row(
             telebot.types.InlineKeyboardButton("Register 🔑", callback_data="register")
         )
+        current_user.identifier = message.from_user.id
         bot.send_message(message.chat.id,
                          '👋 Hello, it seems you are not registered.\nDo you want to register?',
                          reply_markup=keyboard)
     else:
+        user = users[0]
+        current_user = User.User(user[0], user[1], user[2], user[3], user[4], user[5], user[6], user[7])
+        for card in controller.get_cards(current_user):
+            current_user.cards.append(card[0])
+            current_user.cards.append(card[1])
+
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        keyboard.row(
+            telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters")
+        )
         bot.send_message(message.chat.id,
-                         '👋 Hello, ' + users[0][1])
+                         '👋 Hello, ' + current_user.name, reply_markup=keyboard)
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("register"))
+@bot.callback_query_handler(func=lambda call: call.data == "nearest_scooters")
 def register(call):
-    current_user.identifier = call.message.from_user.id
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+    keyboard.add(types.KeyboardButton(text="Send 📍", request_location=True))
+    message = bot.send_message(call.message.chat.id,
+                               'First, provide your location so we could find nearest variants for you 📍',
+                               reply_markup=keyboard)
+    bot.register_next_step_handler(message, current_user_location)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "register")
+def register(call):
     current_user.cards = []
     current_user.bonus_points = 0
 
@@ -90,7 +121,6 @@ def user_surname(message):
 
 
 def user_card(message):
-    pprint(vars(current_user))
     if message.text is None:
         bot.send_message(message.chat.id, "Wrong input, try again ❌")
         bot.register_next_step_handler(message, user_card)
@@ -104,15 +134,15 @@ def user_card(message):
             )
             bot.send_message(message.chat.id, "Add another one?", reply_markup=keyboard)
         else:
-            message = bot.send_message(message.chat.id, "Maximal number of cards added, registration finished ✅")
-            registration_handler()
+            message = bot.send_message(message.chat.id, "Registration finished ✅")
+            insert_user()
             bot.register_next_step_handler(message, default)
     elif len(message.text) > 15:
         bot.send_message(message.chat.id, "Card name is too long, try again ❌")
         bot.register_next_step_handler(message, user_card)
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("add_card"))
+@bot.callback_query_handler(func=lambda call: call.data == "add_card")
 def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -120,12 +150,12 @@ def register(call):
     bot.register_next_step_handler(message, user_card)
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("stop_adding_cards"))
+@bot.callback_query_handler(func=lambda call: call.data == "stop_adding_cards")
 def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
-    message = bot.send_message(call.message.chat.id, "Cards added, registration finished ✅")
-    registration_handler()
+    message = bot.send_message(call.message.chat.id, "Registration finished ✅")
+    insert_user()
     bot.register_next_step_handler(message, default)
 
 
@@ -162,10 +192,25 @@ def default(message):
     bot.send_message(message.chat.id, "Please use the menu 📋")
 
 
+def current_user_location(message):
+    latitude = message.location.latitude
+    longitude = message.location.longitude
+    keyboard = telebot.types.InlineKeyboardMarkup()
+    for scooter in all_scooters:
+        keyboard.row().add(telebot.types.InlineKeyboardButton("🛴 " +
+                                                              str(round(geodesic((latitude, longitude),
+                                                                                 (scooter.latitude,
+                                                                                  scooter.longitude)).meters)) + "m " + str(
+            scooter.charge_level) + " " + str(scooter.cents_per_minute) + " ¢/min",
+                                                              callback_data="register"))
+    bot.send_message(message.chat.id, "Nearest scooters", reply_markup=keyboard)
+
+
 def user_location(message):
     try:
         locator = Nominatim(user_agent="myGeocoder")
         location = locator.reverse(str(message.location.latitude) + ", " + str(message.location.longitude))
+        pprint(vars(message.location))
         try:
             current_user.country = location.raw['address']['country']
             current_user.city = location.raw['address']['city']
@@ -189,7 +234,6 @@ def user_location(message):
                 bot.register_next_step_handler(message, user_card)
             except KeyError:
                 try:
-                    pprint(vars(current_user))
                     bot.send_message(
                         message.chat.id,
                         "Your country: " + str(current_user.country) + "\nYour city: " + str(
@@ -222,7 +266,6 @@ def callback_inline(call: CallbackQuery):
         keyboard.add(types.KeyboardButton(text="Send ☎", request_contact=True))
         message = bot.send_message(call.message.chat.id, "Send your phone number ☎", reply_markup=keyboard)
         bot.register_next_step_handler(message, user_contact)
-
     elif action == "CANCEL":
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
@@ -233,7 +276,7 @@ def callback_inline(call: CallbackQuery):
         )
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("getdate"))
+@bot.callback_query_handler(func=lambda call: call.data == "getdate")
 def callback_inline(call: CallbackQuery):
     if call.data == "getdate":
         now = datetime.now()

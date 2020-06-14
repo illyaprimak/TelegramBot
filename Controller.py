@@ -3,6 +3,8 @@ import psycopg2
 import User
 import Employee
 import Card
+import Vehicle
+import Zone
 
 
 class Controller(object):
@@ -27,6 +29,14 @@ class Controller(object):
         elif type(instance) == Card.Card:
             self.cursor.execute("INSERT INTO card (name, user_id) VALUES(%s, %s)",
                                 (instance.name, instance.owner))
+        elif type(instance) == Vehicle.Vehicle:
+            self.cursor.execute("INSERT INTO vehicle VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                (instance.identifier, instance.taken, instance.technical_state,
+                                 instance.last_tech_service, instance.charge_level,
+                                 instance.cents_per_minute, instance.zone_id, instance.latitude, instance.longitude))
+        elif type(instance) == Zone.Zone:
+            self.cursor.execute("INSERT INTO allowed_zone VALUES(%s, %s, %s)",
+                                (instance.identifier, instance.area, instance.location))
         self.conn.commit()
 
     def get_all(self, table_name):
