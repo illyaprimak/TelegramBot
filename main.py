@@ -27,6 +27,7 @@ controller = Controller("d6ib69jeupvh36", "szvriplnadxleq",
 bot = telebot.TeleBot('1198725614:AAECjKvTD7fpK_rO21vxsBpNYwKgJJluxC8')
 
 current_user = User.User()
+current_employee = Employee.Employee()
 all_scooters = []
 for vehicle in controller.get_all("vehicle"):
     all_scooters.append(
@@ -46,11 +47,14 @@ def start_message(message):
     if len(users) == 0:
         global current_user
         current_user = User.User()
+        global current_employee
+        current_employee = Employee.Employee()
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
-            telebot.types.InlineKeyboardButton("Register 🔑", callback_data="register")
+            telebot.types.InlineKeyboardButton("Like user 🔑", callback_data="register"),
+            telebot.types.InlineKeyboardButton("Like employee 💩", callback_data="register_emp")
         )
-        current_user.identifier = message.from_user.id
+
         bot.send_message(message.chat.id,
                          '👋 Hello, it seems you are not registered.\nDo you want to register?',
                          reply_markup=keyboard)
@@ -83,6 +87,7 @@ def register(call):
 
 @bot.callback_query_handler(func=lambda call: call.data == "register")
 def register(call):
+    current_user.identifier = call.from_user.id
     current_user.cards = []
     current_user.bonus_points = 0
 
@@ -92,6 +97,37 @@ def register(call):
     message = bot.send_message(call.message.chat.id, "Enter your name ✏")
     bot.register_next_step_handler(message, user_name)
 
+
+@bot.callback_query_handler(func=lambda call: call.data == "register_emp")
+def register(call):
+    current_employee.identifier = call.from_user.id
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+
+    keyboard = telebot.types.InlineKeyboardMarkup()
+    keyboard.row(
+        telebot.types.InlineKeyboardButton("Charger ⚡", callback_data="charger"),
+        telebot.types.InlineKeyboardButton("Repairer 🔨", callback_data="repairer")
+    )
+
+    bot.send_message(call.message.chat.id, "You want to be charger or repairer ?",reply_markup=keyboard)
+
+@bot.callback_query_handler(func=lambda call: call.data == "charger")
+def register(call):
+    current_employee.specialization = False
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    controller.insert(current_employee)
+    bot.send_message(call.message.chat.id, "Cool , you are registered as charger")
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "repairer")
+def register(call):
+    current_employee.specialization = True
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    controller.insert(current_employee)
+    bot.send_message(call.message.chat.id, "Cool , you are registered as repairer")
 
 @bot.message_handler(content_types=['text'])
 def default(message):
