@@ -12,6 +12,7 @@ import psycopg2
 import User
 import Card
 import Employee
+import Serve
 from telebot import types
 from pprint import pprint
 from telebot_calendar import CallbackData
@@ -71,6 +72,7 @@ def start_message(message):
             telebot.types.InlineKeyboardButton("Like user 🔑", callback_data="register"),
             telebot.types.InlineKeyboardButton("Like employee 🛠️", callback_data="register_emp")
         )
+
         bot.send_message(message.chat.id,
                          '👋 Hello, it seems you are not registered.\nDo you want to register?',
                          reply_markup=keyboard)
@@ -93,7 +95,7 @@ def start_message(message):
         keyboard.row(
             telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters")
         )
-        bot.send_message(message.chat.id, '👋 Hello', reply_markup=keyboard)
+        bot.send_message(message.chat.id, '👋 Hello, employee! Want serve some scooters?', reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "nearest_scooters")
@@ -132,13 +134,59 @@ def send_scooter_location(call):
     bot.answer_callback_query(call.id)
     latitude = float(call.data.split('|')[1])
     longitude = float(call.data.split('|')[2])
-    bot.send_message(call.message.chat.id, "Chosen scooter's coordinates 📍\nCode to ride: " + call.data.split('|')[3],
+    if controller.employee_exists(call.from_user.id) != None:
+        spec = controller.get_specialization(call.from_user.id)[0][0]
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        if spec is False:
+            keyboard.row(
+                telebot.types.InlineKeyboardButton("Charge ⚡", callback_data="charge_vehicle|" + call.data.split('|')[3])
+            )
+        else:
+            keyboard.row(
+                telebot.types.InlineKeyboardButton("Repair 🔨",
+                                                   callback_data="repair_vehicle|" + call.data.split('|')[3])
+            )
+        bot.send_message(call.message.chat.id,
+                         "Chosen scooter's coordinates 📍" ,
+                         reply_markup=ReplyKeyboardRemove())
+        bot.send_location(
+            chat_id=call.message.chat.id,
+            latitude=latitude,
+            longitude=longitude,
+            reply_markup=keyboard
+        )
+    else:
+        bot.send_message(call.message.chat.id, "Chosen scooter's coordinates 📍\nCode to ride: " + call.data.split('|')[3],
+                         reply_markup=ReplyKeyboardRemove())
+        bot.send_location(
+            chat_id=call.message.chat.id,
+            latitude=latitude,
+            longitude=longitude
+        )
+
+
+@bot.callback_query_handler(func=lambda call:call.data.startswith("charge_vehicle"))
+def charge(call):
+    bot.answer_callback_query(call.id)
+    controller.insert(Serve.Serve(call.from_user.id, call.data.split('|')[1]))
+
+    spec = controller.get_specialization(call.from_user.id)[0][0]
+    bot.send_message(call.message.chat.id,
+                     "Your spec = " + str(spec) + ", vehicle id =" + call.data.split('|')[1],
                      reply_markup=ReplyKeyboardRemove())
-    bot.send_location(
-        chat_id=call.message.chat.id,
-        latitude=latitude,
-        longitude=longitude
-    )
+    controller.serve_vehicle(call.data.split('|')[1])
+
+
+@bot.callback_query_handler(func=lambda call:call.data.startswith("repair_vehicle"))
+def charge(call):
+    bot.answer_callback_query(call.id)
+    controller.insert(Serve.Serve(call.from_user.id, call.data.split('|')[1]))
+
+    spec = controller.get_specialization(call.from_user.id)[0][0]
+    bot.send_message(call.message.chat.id,
+                     "Your spec = " + str(spec) + ", vehicle id =" + call.data.split('|')[1],
+                     reply_markup=ReplyKeyboardRemove())
+    controller.repair_vehicle()
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("end_rent"))
@@ -176,6 +224,7 @@ def register(call):
     )
 
     bot.send_message(call.message.chat.id, "Register as charger or repairer", reply_markup=keyboard)
+
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "charger")
