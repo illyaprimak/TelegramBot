@@ -5,7 +5,8 @@ import Employee
 import Card
 import Vehicle
 import Zone
-
+import Serve
+import datetime
 
 class Controller(object):
 
@@ -37,6 +38,20 @@ class Controller(object):
         elif type(instance) == Zone.Zone:
             self.cursor.execute("INSERT INTO allowed_zone VALUES(%s, %s, %s)",
                                 (instance.identifier, instance.area, instance.location))
+        elif type(instance) == Serve.Serve:
+            self.cursor.execute("INSERT INTO employee_serves_vehicle(employee_id,vehicle_id) VALUES(%s, %s)",
+                                (instance.employee_id, instance.vehicle_id))
+
+        self.conn.commit()
+
+    def serve_vehicle(self, vehicle_id):
+        self.cursor.execute('UPDATE vehicle SET charge_level = 100 WHERE vehicle_id = %s', vehicle_id)
+        self.conn.commit()
+
+    def repair_vehicle(self):
+        today = '\''+str(datetime.date.today().year)+'-'+str(datetime.date.today().month)+'-'+str(datetime.date.today().day)+'\''
+        sql = 'UPDATE vehicle SET last_tech_service = '+today+', technical_state=True WHERE vehicle_id IN(SELECT vehicle_id FROM employee_serves_vehicle WHERE serve_id IN(SELECT MAX(serve_id) FROM employee_serves_vehicle))'
+        self.cursor.execute(sql)
         self.conn.commit()
 
     def get_all(self, table_name):
@@ -53,4 +68,8 @@ class Controller(object):
 
     def get_cards(self, user):
         self.cursor.execute('SELECT * FROM card WHERE user_id = ' + str(user.identifier))
+        return self.cursor.fetchall()
+
+    def get_specialization(self, identifier):
+        self.cursor.execute('SELECT specialization FROM employee WHERE employee_id = ' + str(identifier))
         return self.cursor.fetchall()
