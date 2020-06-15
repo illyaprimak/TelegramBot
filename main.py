@@ -51,9 +51,9 @@ def rent_handler(vehicle_identifier):
     current_user.currently_used_vehicle = current_vehicle
 
 
-def end_ride_handler():
-    controller.end_ride(current_user, current_user.currently_used_vehicle, 1)
-    current_user.currently_used_vehicle = None
+def end_ride_handler(latitude, longitude):
+    controller.end_vehicle_rent(current_user.currently_used_vehicle, latitude, longitude)
+    controller.end_ride(datetime.now(), current_user, current_user.currently_used_vehicle)
 
 
 @bot.message_handler(commands=['start'])
@@ -78,8 +78,7 @@ def start_message(message):
         user = user[0]
         current_user = User.User(user[0], user[1], user[2], user[3], user[4], user[5], user[6], user[7])
         for card in controller.get_cards(current_user):
-            current_user.cards.append(card[0])
-            current_user.cards.append(card[1])
+            current_user.cards.append(Card.Card(card[1], card[2]))
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row().add(
             telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters"))
@@ -114,7 +113,10 @@ def register(call):
 def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
-    end_ride_handler()
+    keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=bool(True))
+    keyboard.add(types.KeyboardButton(text="Send 📍", request_location=True))
+    message = bot.send_message(call.message.chat.id, text="Send your location", reply_markup=keyboard)
+    bot.register_next_step_handler(message, current_user_location_ride_end)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("send_scooter_location"))
@@ -129,6 +131,15 @@ def send_scooter_location(call):
         latitude=latitude,
         longitude=longitude
     )
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("end_rent"))
+def send_scooter_location(call):
+    bot.answer_callback_query(call.id)
+    latitude = float(call.data.split('|')[1])
+    longitude = float(call.data.split('|')[2])
+    end_ride_handler(latitude, longitude)
+    bot.send_message(call.message.chat.id, "Ride ended", reply_markup=ReplyKeyboardRemove())
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "register")
@@ -215,9 +226,7 @@ def rent_by_id(message):
     elif message.text.isdigit():
         rent_handler(message.text)
         keyboard = telebot.types.InlineKeyboardMarkup()
-        keyboard.row(
-            telebot.types.InlineKeyboardButton("End ride 🛑", callback_data="end_ride")
-        )
+        keyboard.row(telebot.types.InlineKeyboardButton("End ride 🛑", callback_data="end_ride"))
         bot.send_message(message.chat.id, "Use the button below to end ride ⬇️", reply_markup=keyboard)
 
 
@@ -257,7 +266,7 @@ def user_card(message):
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "add_card")
-def register(call):
+def add_card(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     message = bot.send_message(call.message.chat.id, "Specify the card name 💳")
@@ -265,7 +274,7 @@ def register(call):
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "stop_adding_cards")
-def register(call):
+def stop_adding_cards(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     message = bot.send_message(call.message.chat.id, "Registration finished ✅")
@@ -329,6 +338,22 @@ def current_user_location(message):
     except AttributeError:
         bot.send_message(message.chat.id, "Wrong input, try again ❌")
         bot.register_next_step_handler(message, current_user_location)
+
+
+def current_user_location_ride_end(message):
+    try:
+        latitude = message.location.latitude
+        longitude = message.location.longitude
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        for card in current_user.cards:
+            keyboard.row().add(
+                telebot.types.InlineKeyboardButton(card.name,
+                                                   callback_data="end_rent|" + str(latitude) + "|" + str(longitude)))
+        message = bot.send_message(message.chat.id, "Choose card to pay", reply_markup=keyboard)
+        bot.register_next_step_handler(message, default)
+    except AttributeError:
+        bot.send_message(message.chat.id, "Wrong input, try again ❌")
+        bot.register_next_step_handler(message, current_user_location_ride_end)
 
 
 def user_location(message):
