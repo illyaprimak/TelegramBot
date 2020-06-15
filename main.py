@@ -88,7 +88,7 @@ def start_message(message):
         bot.send_message(message.chat.id, '👋 Hello, ' + current_user.name, reply_markup=keyboard)
     else:
         employee = employee[0]
-        current_employee = Employee.Employee(employee[0] , employee[1])
+        current_employee = Employee.Employee(employee[0], employee[1])
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
             telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters")
@@ -200,10 +200,10 @@ def register(call):
 def default(message):
     if len(controller.user_exists(message.from_user.id)) > 0:
         keyboard = telebot.types.InlineKeyboardMarkup()
-        keyboard.row(
-            telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters"),
-            telebot.types.InlineKeyboardButton("Rent scooter by id 🛴", callback_data="rent_scooter")
-        )
+        keyboard.row().add(
+            telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters"))
+        keyboard.row().add(
+            telebot.types.InlineKeyboardButton("Start a ride 🛴", callback_data="rent_scooter"))
         bot.send_message(message.chat.id, text="Please use the menu 📋", reply_markup=keyboard)
     elif len(controller.employee_exists(message.from_user.id)) > 0:
         keyboard = telebot.types.InlineKeyboardMarkup()
@@ -234,7 +234,7 @@ def rent_by_id(message):
     elif message.text.isdigit():
         rent_handler(message.text)
         keyboard = telebot.types.InlineKeyboardMarkup()
-        keyboard.row(telebot.types.InlineKeyboardButton("End ride 🛑", callback_data="end_ride"))
+        keyboard.row(telebot.types.InlineKeyboardButton("End ride 🏁", callback_data="end_ride"))
         bot.send_message(message.chat.id, "Use the button below to end ride ⬇️", reply_markup=keyboard)
 
 
