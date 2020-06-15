@@ -11,3 +11,4 @@ class User(object):
         self.city = city
         self.bonus_points = bonus_points
         self.cards = cards
+        self.currently_used_vehicle = None
