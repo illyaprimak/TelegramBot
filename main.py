@@ -74,7 +74,7 @@ def start_message(message):
         bot.send_message(message.chat.id,
                          '👋 Hello, it seems you are not registered.\nDo you want to register?',
                          reply_markup=keyboard)
-    else:
+    elif len(employee) == 0:
         user = user[0]
         current_user = User.User(user[0], user[1], user[2], user[3], user[4], user[5], user[6], user[7])
         for card in controller.get_cards(current_user):
@@ -86,6 +86,14 @@ def start_message(message):
             telebot.types.InlineKeyboardButton("Start a ride 🛴", callback_data="rent_scooter"))
 
         bot.send_message(message.chat.id, '👋 Hello, ' + current_user.name, reply_markup=keyboard)
+    else:
+        employee = employee[0]
+        current_employee = Employee.Employee(employee[0] , employee[1])
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        keyboard.row(
+            telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters")
+        )
+        bot.send_message(message.chat.id, '👋 Hello', reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "nearest_scooters")
