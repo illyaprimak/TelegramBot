@@ -1,3 +1,6 @@
+from datetime import datetime
+from pprint import pprint
+
 import psycopg2
 
 import User
@@ -43,6 +46,10 @@ class Controller(object):
         self.cursor.execute('SELECT * FROM ' + table_name)
         return self.cursor.fetchall()
 
+    def get_vehicle(self, identifier):
+        self.cursor.execute('SELECT * FROM vehicle WHERE vehicle_id = %s', identifier)
+        return self.cursor.fetchall()
+
     def user_exists(self, identifier):
         self.cursor.execute('SELECT * FROM user_customer WHERE user_id = ' + str(identifier))
         return self.cursor.fetchall()
@@ -54,3 +61,18 @@ class Controller(object):
     def get_cards(self, user):
         self.cursor.execute('SELECT * FROM card WHERE user_id = ' + str(user.identifier))
         return self.cursor.fetchall()
+
+    def add_ride(self, user, vehicle):
+        self.cursor.execute('INSERT INTO user_uses_vehicle (start_time, user_id, vehicle_id) VALUES(%s, %s, %s)', (
+            datetime.now(), user.identifier, vehicle.identifier))
+        self.conn.commit()
+
+        self.cursor.execute(
+            'UPDATE vehicle SET taken = %s WHERE vehicle_id = %s', (bool(True), vehicle.identifier))
+        self.conn.commit()
+
+    def end_ride(self, user, vehicle, payment):
+        self.cursor.execute(
+            'UPDATE user_uses_vehicle SET end_time = %s, payment = %s WHERE user_id = %s AND vehicle_id = %s AND end_time IS NULL',
+            (datetime.now(), payment, user.identifier, vehicle.identifier))
+        self.conn.commit()

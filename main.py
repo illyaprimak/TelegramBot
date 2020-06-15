@@ -42,6 +42,20 @@ def insert_user():
         controller.insert(card)
 
 
+def rent_handler(vehicle_identifier):
+    current_vehicle = controller.get_vehicle(vehicle_identifier)[0]
+    current_vehicle = Vehicle.Vehicle(current_vehicle[0], current_vehicle[1], current_vehicle[2], current_vehicle[3],
+                                      current_vehicle[4], current_vehicle[5], current_vehicle[6], current_vehicle[7],
+                                      current_vehicle[8])
+    controller.add_ride(current_user, current_vehicle)
+    current_user.currently_used_vehicle = current_vehicle
+
+
+def end_ride_handler():
+    controller.end_ride(current_user, current_user.currently_used_vehicle, 1)
+    current_user.currently_used_vehicle = None
+
+
 @bot.message_handler(commands=['start'])
 def start_message(message):
     user = controller.user_exists(message.from_user.id)
@@ -55,10 +69,8 @@ def start_message(message):
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
             telebot.types.InlineKeyboardButton("Like user 🔑", callback_data="register"),
-            telebot.types.InlineKeyboardButton("Like employee 💩", callback_data="register_emp")
+            telebot.types.InlineKeyboardButton("Like employee 🛠️", callback_data="register_emp")
         )
-
-
         bot.send_message(message.chat.id,
                          '👋 Hello, it seems you are not registered.\nDo you want to register?',
                          reply_markup=keyboard)
@@ -68,12 +80,12 @@ def start_message(message):
         for card in controller.get_cards(current_user):
             current_user.cards.append(card[0])
             current_user.cards.append(card[1])
-        global authorized
-        authorized = bool(True)
         keyboard = telebot.types.InlineKeyboardMarkup()
-        keyboard.row(
-            telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters")
-        )
+        keyboard.row().add(
+            telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters"))
+        keyboard.row().add(
+            telebot.types.InlineKeyboardButton("Start a ride 🛴", callback_data="rent_scooter"))
+
         bot.send_message(message.chat.id, '👋 Hello, ' + current_user.name, reply_markup=keyboard)
 
 
@@ -87,6 +99,22 @@ def register(call):
                                'First, provide your location so we could find nearest variants for you 📍',
                                reply_markup=keyboard)
     bot.register_next_step_handler(message, current_user_location)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "rent_scooter")
+def register(call):
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    message = bot.send_message(call.message.chat.id,
+                               "Enter the scooter's unique code")
+    bot.register_next_step_handler(message, rent_by_id)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "end_ride")
+def register(call):
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    end_ride_handler()
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("send_scooter_location"))
@@ -116,7 +144,6 @@ def register(call):
     bot.register_next_step_handler(message, user_name)
 
 
-
 @bot.callback_query_handler(func=lambda call: call.data == "register_emp")
 def register(call):
     current_employee.identifier = call.from_user.id
@@ -126,10 +153,11 @@ def register(call):
     keyboard = telebot.types.InlineKeyboardMarkup()
     keyboard.row(
         telebot.types.InlineKeyboardButton("Charger ⚡", callback_data="charger"),
-        telebot.types.InlineKeyboardButton("Repairer 🔨", callback_data="repairer")
+        telebot.types.InlineKeyboardButton("Repairer 🛠️", callback_data="repairer")
     )
 
-    bot.send_message(call.message.chat.id, "You want to be charger or repairer ?",reply_markup=keyboard)
+    bot.send_message(call.message.chat.id, "Register as charger or repairer", reply_markup=keyboard)
+
 
 @bot.callback_query_handler(func=lambda call: call.data == "charger")
 def register(call):
@@ -137,7 +165,7 @@ def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     controller.insert(current_employee)
-    bot.send_message(call.message.chat.id, "Cool , you are registered as charger")
+    bot.send_message(call.message.chat.id, "You are registered as charger ⚡")
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "repairer")
@@ -146,16 +174,23 @@ def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     controller.insert(current_employee)
-    bot.send_message(call.message.chat.id, "Cool , you are registered as repairer")
+    bot.send_message(call.message.chat.id, "You are registered as repairer 🛠️")
 
-@bot.message_handler(content_types=['text'])
 
 @bot.message_handler()
 def default(message):
     if len(controller.user_exists(message.from_user.id)) > 0:
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
-            telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters")
+            telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters"),
+            telebot.types.InlineKeyboardButton("Rent scooter by id 🛴", callback_data="rent_scooter")
+        )
+        bot.send_message(message.chat.id, text="Please use the menu 📋", reply_markup=keyboard)
+    elif len(controller.employee_exists(message.from_user.id)) > 0:
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        keyboard.row(
+            telebot.types.InlineKeyboardButton("Charge ⚡", callback_data=""),
+            telebot.types.InlineKeyboardButton("Repair 🛠️", callback_data="")
         )
         bot.send_message(message.chat.id, text="Please use the menu 📋", reply_markup=keyboard)
     else:
@@ -171,6 +206,19 @@ def user_name(message):
         current_user.name = message.text
         message = bot.send_message(message.chat.id, "Enter your surname ✏")
         bot.register_next_step_handler(message, user_surname)
+
+
+def rent_by_id(message):
+    if message.text is None:
+        bot.send_message(message.chat.id, "Wrong input, try again ❌")
+        bot.register_next_step_handler(message, rent_by_id)
+    elif message.text.isdigit():
+        rent_handler(message.text)
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        keyboard.row(
+            telebot.types.InlineKeyboardButton("End ride 🛑", callback_data="end_ride")
+        )
+        bot.send_message(message.chat.id, "Use the button below to end ride ⬇️", reply_markup=keyboard)
 
 
 def user_surname(message):
@@ -226,10 +274,6 @@ def register(call):
 
 
 @bot.message_handler(content_types=['contact', 'text'])
-def default(message):
-    bot.send_message(message.chat.id, "Please use the menu 📋")
-
-
 def user_contact(message):
     keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
     keyboard.add(types.KeyboardButton(text="Send 📍", request_location=True))
@@ -254,10 +298,6 @@ def user_contact(message):
 
 
 @bot.message_handler(content_types=['location'])
-def default(message):
-    bot.send_message(message.chat.id, "Please use the menu 📋")
-
-
 def current_user_location(message):
     try:
         latitude = message.location.latitude
@@ -295,7 +335,6 @@ def user_location(message):
     try:
         locator = Nominatim(user_agent="myGeocoder")
         location = locator.reverse(str(message.location.latitude) + ", " + str(message.location.longitude))
-        pprint(vars(message.location))
         try:
             current_user.country = location.raw['address']['country']
             current_user.city = location.raw['address']['city']
@@ -346,7 +385,7 @@ def callback_inline(call: CallbackQuery):
     )
     if action == "DAY":
         adult = timedelta(days=6575)
-        if(datetime.now() - adult) > date:
+        if (datetime.now() - adult) > date:
             current_user.birth_date = date
 
             keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=bool(True))
