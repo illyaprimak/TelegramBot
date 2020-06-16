@@ -88,7 +88,7 @@ class Controller(object):
         return self.cursor.fetchall()
 
     def get_statistic(self, identifier):
-        self.cursor.execute("CREATE TEMPORARY TABLE a AS SELECT vehicle_id,COUNT(employee_id) AS \"number1\" FROM employee_serves_vehicle WHERE employee_id IN(SELECT employee_id FROM employee WHERE employee_id = %s ) GROUP BY vehicle_id; CREATE TEMPORARY TABLE b AS SELECT vehicle_id,COUNT(*) AS \"number2\" FROM employee_serves_vehicle GROUP BY vehicle_id; SELECT a.vehicle_id, a.number1, b.number2 FROM A INNER JOIN B ON A.vehicle_id = B.vehicle_id; ", [identifier])
+        self.cursor.execute("CREATE OR REPLACE VIEW a AS SELECT vehicle_id,COUNT(employee_id) AS \"number1\" FROM employee_serves_vehicle WHERE employee_id IN(SELECT employee_id FROM employee WHERE employee_id = %s ) GROUP BY vehicle_id; CREATE OR REPLACE VIEW b AS SELECT vehicle_id,COUNT(*) AS \"number2\" FROM employee_serves_vehicle GROUP BY vehicle_id; SELECT a.vehicle_id, a.number1, b.number2 FROM A INNER JOIN B ON A.vehicle_id = B.vehicle_id; ", [identifier])
         return self.cursor.fetchall()
 
     def get_broken_users(self):
