@@ -1,15 +1,2 @@
 certifi==2020.4.5.2
 chardet==3.0.4
-DateTime==4.3
-geographiclib==1.50
-geopy==1.22.0
-idna==2.9
-psycopg2==2.8.5
-pyTelegramBotAPI==3.7.1
-pytz==2020.1
-requests==2.7.0
-six==1.15.0
-telebot==0.0.3
-telebot-calendar==1.1
-urllib3==1.25.9
-zope.interface==5.1.0
