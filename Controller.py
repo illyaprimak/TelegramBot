@@ -102,10 +102,10 @@ class Controller(object):
             'UPDATE vehicle SET taken = %s WHERE vehicle_id = %s', (bool(True), vehicle.identifier))
         self.conn.commit()
 
-    def end_ride(self, end_time, user, vehicle):
+    def end_ride(self, end_time, user, vehicle, payment):
         self.cursor.execute(
-            'UPDATE user_uses_vehicle SET end_time = %s WHERE user_id = %s AND vehicle_id = %s AND end_time IS NULL',
-            (end_time, user.identifier, vehicle.identifier))
+            'UPDATE user_uses_vehicle SET end_time = %s, payment = %s WHERE user_id = %s AND vehicle_id = %s AND end_time IS NULL',
+            (end_time, payment, user.identifier, vehicle.identifier))
         self.conn.commit()
 
     def get_ride(self, user, vehicle):
@@ -120,3 +120,24 @@ class Controller(object):
             user.bonus_points, user.identifier
         ))
         self.conn.commit()
+
+    def get_payments_sum(self, user):
+        self.cursor.execute('SELECT user_id, SUM(payment) FROM user_uses_vehicle WHERE user_id = %s GROUP BY user_id', (
+            [user.identifier]
+        ))
+        return self.cursor.fetchall()
+
+    def get_users_rides(self, user):
+        self.cursor.execute(
+            'SELECT start_time, end_time, payment FROM user_uses_vehicle WHERE payment IS NOT NULL AND user_id = %s', (
+                [user.identifier]
+            ))
+        return self.cursor.fetchall()
+
+    def get_employee_by_zone_radius(self, radius):
+        self.cursor.execute(
+            'SELECT * FROM employee AS E WHERE NOT EXISTS ( SELECT * FROM vehicle AS V WHERE zone_id IN(SELECT zone_id FROM allowed_zone WHERE radius < %s) AND NOT EXISTS (SELECT * FROM employee_serves_vehicle AS S WHERE S.employee_id = E.employee_id AND S.vehicle_id = V.vehicle_id))',
+            (
+                [radius]
+            ))
+        return self.cursor.fetchall()
