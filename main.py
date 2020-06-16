@@ -18,9 +18,8 @@ from pprint import pprint
 from telebot_calendar import CallbackData
 from telebot.types import ReplyKeyboardRemove, CallbackQuery
 from geopy.geocoders import Nominatim
-from datetime import datetime
 from Controller import Controller
-import datetime
+from datetime import datetime
 
 controller = Controller("d6ib69jeupvh36", "szvriplnadxleq",
                         "3f6a5c41af6e1ea4a4cc136566588d23fc243823e23a4c2498de18c01865ac3a",
@@ -30,6 +29,7 @@ bot = telebot.TeleBot('1198725614:AAECjKvTD7fpK_rO21vxsBpNYwKgJJluxC8')
 
 current_user = User.User()
 current_employee = Employee.Employee()
+
 
 def insert_user():
     controller.insert(current_user)
@@ -128,12 +128,10 @@ def statistic(call):
     )
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
-    message = bot.send_message(call.message.chat.id,
-                               "Choose statistic\n1.Get general statistic about your serves\n2.Get information about which was the last who ride on the broken bicicles\n3.Find employees who serve all vehicles in zones whose radius would be greater than the parameter",
-                               reply_markup=keyboard)
+    bot.send_message(call.message.chat.id,
+                     "Choose statistic\n1.Get general statistic about your serves\n2.Get information about which was the last who ride on the broken bicicles\n3.Find employees who serve all vehicles in zones whose radius would be greater than the parameter",
+                     reply_markup=keyboard)
 
-
-# bot.register_next_step_handler(message, default)
 
 @bot.callback_query_handler(func=lambda call: call.data == "general")
 def general(call):
@@ -255,11 +253,10 @@ def charge(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     controller.insert(Serve.Serve(call.from_user.id, call.data.split('|')[1]))
-    message = bot.send_message(call.message.chat.id,
-                               "Great job! You charged scooter with id = " + call.data.split('|')[1],
-                               reply_markup=ReplyKeyboardRemove())
+    bot.send_message(call.message.chat.id,
+                     "Great job! You charged scooter with id = " + call.data.split('|')[1],
+                     reply_markup=ReplyKeyboardRemove())
     controller.serve_vehicle(call.data.split('|')[1])
-    #bot.register_next_step_handler(message, default)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("repair_vehicle"))
@@ -267,11 +264,10 @@ def charge(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     controller.insert(Serve.Serve(call.from_user.id, call.data.split('|')[1]))
-    message = bot.send_message(call.message.chat.id,
-                               "Great job! You repaired scooter with id = " + call.data.split('|')[1],
-                               reply_markup=ReplyKeyboardRemove())
+    bot.send_message(call.message.chat.id,
+                     "Great job! You repaired scooter with id = " + call.data.split('|')[1],
+                     reply_markup=ReplyKeyboardRemove())
     controller.repair_vehicle()
-    #bot.register_next_step_handler(message, default)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("end_rent"))
@@ -324,8 +320,7 @@ def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     controller.insert(current_employee)
-    message = bot.send_message(call.message.chat.id, "You are registered as charger ⚡")
-    # bot.register_next_step_handler(message , default)
+    bot.send_message(call.message.chat.id, "You are registered as charger ⚡")
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "repairer")
@@ -334,10 +329,7 @@ def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     controller.insert(current_employee)
-    message = bot.send_message(call.message.chat.id, "You are registered as repairer 🛠️")
-
-
-# bot.register_next_step_handler(message, default)
+    bot.send_message(call.message.chat.id, "You are registered as repairer 🛠️")
 
 
 @bot.message_handler(content_types="text")
@@ -512,7 +504,14 @@ def current_user_location(message):
         def get_first(elem):
             return elem[0]
 
-        for vehicle in controller.get_all_vehicles_for_user():
+        vehicles = None
+
+        if current_user.identifier is not None:
+            vehicles = controller.get_all_vehicles_for_user()
+        elif current_employee.identifier is not None:
+            vehicles = controller.get_all_vehicles_for_employee()
+
+        for vehicle in vehicles:
             vehicle = Vehicle.Vehicle(vehicle[0], vehicle[1], vehicle[2], vehicle[3], vehicle[4], vehicle[5],
                                       vehicle[6], vehicle[7], vehicle[8])
             scooters.append([round(geodesic((latitude, longitude), (vehicle.latitude, vehicle.longitude)).meters),

@@ -67,6 +67,11 @@ class Controller(object):
             'SELECT * FROM vehicle WHERE charge_level > 20 AND taken = false AND technical_state = true')
         return self.cursor.fetchall()
 
+    def get_all_vehicles_for_employee(self):
+        self.cursor.execute(
+            'SELECT * FROM vehicle WHERE (charge_level < 20 OR technical_state = false) AND taken = false')
+        return self.cursor.fetchall()
+
     def get_vehicle(self, identifier):
         self.cursor.execute('SELECT * FROM vehicle WHERE vehicle_id = %s', identifier)
         return self.cursor.fetchall()
