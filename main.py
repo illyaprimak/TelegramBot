@@ -29,12 +29,6 @@ bot = telebot.TeleBot('1198725614:AAECjKvTD7fpK_rO21vxsBpNYwKgJJluxC8')
 
 current_user = User.User()
 current_employee = Employee.Employee()
-all_scooters = []
-
-for vehicle in controller.get_all("vehicle"):
-    all_scooters.append(
-        Vehicle.Vehicle(vehicle[0], vehicle[1], vehicle[2], vehicle[3], vehicle[4], vehicle[5], vehicle[6], vehicle[7],
-                        vehicle[8]))
 
 
 def insert_user():
@@ -52,9 +46,10 @@ def rent_handler(vehicle_identifier):
     current_user.currently_used_vehicle = current_vehicle
 
 
-def end_ride_handler(latitude, longitude):
-    controller.end_vehicle_rent(current_user.currently_used_vehicle, latitude, longitude)
+def end_ride_handler(latitude, longitude, zone_id):
+    controller.end_vehicle_rent(current_user.currently_used_vehicle, latitude, longitude, zone_id)
     controller.end_ride(datetime.now(), current_user, current_user.currently_used_vehicle)
+    current_user.currently_used_vehicle = None
 
 
 @bot.message_handler(commands=['start'])
@@ -69,8 +64,8 @@ def start_message(message):
         current_employee = Employee.Employee()
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
-            telebot.types.InlineKeyboardButton("Like user 🔑", callback_data="register"),
-            telebot.types.InlineKeyboardButton("Like employee 🛠️", callback_data="register_emp")
+            telebot.types.InlineKeyboardButton("As user 🔑", callback_data="register"),
+            telebot.types.InlineKeyboardButton("As employee 🛠️", callback_data="register_emp")
         )
 
         bot.send_message(message.chat.id,
@@ -83,19 +78,18 @@ def start_message(message):
             current_user.cards.append(Card.Card(card[1], card[2]))
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row().add(
-            telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters"))
+            telebot.types.InlineKeyboardButton("See nearest scooters 🗺️", callback_data="nearest_scooters"))
         keyboard.row().add(
             telebot.types.InlineKeyboardButton("Start a ride 🛴", callback_data="rent_scooter"))
-
         bot.send_message(message.chat.id, '👋 Hello, ' + current_user.name, reply_markup=keyboard)
     else:
         employee = employee[0]
         current_employee = Employee.Employee(employee[0], employee[1])
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
-            telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters")
+            telebot.types.InlineKeyboardButton("See nearest scooters 🗺️", callback_data="nearest_scooters")
         )
-        bot.send_message(message.chat.id, '👋 Hello, employee! Want serve some scooters?', reply_markup=keyboard)
+        bot.send_message(message.chat.id, '👋 Hello, employee', reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "nearest_scooters")
@@ -125,7 +119,7 @@ def register(call):
     bot.delete_message(call.message.chat.id, call.message.message_id)
     keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=bool(True))
     keyboard.add(types.KeyboardButton(text="Send 📍", request_location=True))
-    message = bot.send_message(call.message.chat.id, text="Send your location", reply_markup=keyboard)
+    message = bot.send_message(call.message.chat.id, text="Send your location 📍", reply_markup=keyboard)
     bot.register_next_step_handler(message, current_user_location_ride_end)
 
 
@@ -134,20 +128,21 @@ def send_scooter_location(call):
     bot.answer_callback_query(call.id)
     latitude = float(call.data.split('|')[1])
     longitude = float(call.data.split('|')[2])
-    if controller.employee_exists(call.from_user.id) != None:
+    if len(controller.employee_exists(call.from_user.id)) != 0:
         spec = controller.get_specialization(call.from_user.id)[0][0]
         keyboard = telebot.types.InlineKeyboardMarkup()
         if spec is False:
             keyboard.row(
-                telebot.types.InlineKeyboardButton("Charge ⚡", callback_data="charge_vehicle|" + call.data.split('|')[3])
+                telebot.types.InlineKeyboardButton("Charge ⚡",
+                                                   callback_data="charge_vehicle|" + call.data.split('|')[3])
             )
         else:
             keyboard.row(
-                telebot.types.InlineKeyboardButton("Repair 🔨",
+                telebot.types.InlineKeyboardButton("Repair 🛠️",
                                                    callback_data="repair_vehicle|" + call.data.split('|')[3])
             )
         bot.send_message(call.message.chat.id,
-                         "Chosen scooter's coordinates 📍" ,
+                         "Chosen scooter's coordinates 📍",
                          reply_markup=ReplyKeyboardRemove())
         bot.send_location(
             chat_id=call.message.chat.id,
@@ -156,7 +151,8 @@ def send_scooter_location(call):
             reply_markup=keyboard
         )
     else:
-        bot.send_message(call.message.chat.id, "Chosen scooter's coordinates 📍\nCode to ride: " + call.data.split('|')[3],
+        bot.send_message(call.message.chat.id,
+                         "Chosen scooter's coordinates 📍\nCode to ride: " + call.data.split('|')[3],
                          reply_markup=ReplyKeyboardRemove())
         bot.send_location(
             chat_id=call.message.chat.id,
@@ -165,7 +161,7 @@ def send_scooter_location(call):
         )
 
 
-@bot.callback_query_handler(func=lambda call:call.data.startswith("charge_vehicle"))
+@bot.callback_query_handler(func=lambda call: call.data.startswith("charge_vehicle"))
 def charge(call):
     bot.answer_callback_query(call.id)
     controller.insert(Serve.Serve(call.from_user.id, call.data.split('|')[1]))
@@ -177,7 +173,7 @@ def charge(call):
     controller.serve_vehicle(call.data.split('|')[1])
 
 
-@bot.callback_query_handler(func=lambda call:call.data.startswith("repair_vehicle"))
+@bot.callback_query_handler(func=lambda call: call.data.startswith("repair_vehicle"))
 def charge(call):
     bot.answer_callback_query(call.id)
     controller.insert(Serve.Serve(call.from_user.id, call.data.split('|')[1]))
@@ -192,10 +188,18 @@ def charge(call):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("end_rent"))
 def send_scooter_location(call):
     bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
     latitude = float(call.data.split('|')[1])
     longitude = float(call.data.split('|')[2])
-    end_ride_handler(latitude, longitude)
-    bot.send_message(call.message.chat.id, "Ride ended", reply_markup=ReplyKeyboardRemove())
+    end_ride_handler(latitude, longitude, int(call.data.split('|')[3]))
+    reply = "Ride ended 🏁"
+    if len(call.data.split('|')) == 5:
+        current_user.bonus_points -= int(float(call.data.split('|')[4]))
+        reply += "\nYou have spent " + str(int(float(call.data.split('|')[4]))) + " bonusesб " + str(
+            int(float(current_user.bonus_points))) + " left"
+        controller.update_bonuses(current_user)
+
+    bot.send_message(call.message.chat.id, reply, reply_markup=ReplyKeyboardRemove())
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "register")
@@ -222,9 +226,7 @@ def register(call):
         telebot.types.InlineKeyboardButton("Charger ⚡", callback_data="charger"),
         telebot.types.InlineKeyboardButton("Repairer 🛠️", callback_data="repairer")
     )
-
     bot.send_message(call.message.chat.id, "Register as charger or repairer", reply_markup=keyboard)
-
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "charger")
@@ -245,24 +247,24 @@ def register(call):
     bot.send_message(call.message.chat.id, "You are registered as repairer 🛠️")
 
 
-@bot.message_handler()
+@bot.message_handler(content_types="text")
 def default(message):
     if len(controller.user_exists(message.from_user.id)) > 0:
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row().add(
-            telebot.types.InlineKeyboardButton("See nearest scooters 🛴", callback_data="nearest_scooters"))
+            telebot.types.InlineKeyboardButton("See nearest scooters 🗺️", callback_data="nearest_scooters"))
         keyboard.row().add(
             telebot.types.InlineKeyboardButton("Start a ride 🛴", callback_data="rent_scooter"))
-        bot.send_message(message.chat.id, text="Please use the menu 📋", reply_markup=keyboard)
+        bot.send_message(message.chat.id, text="Menu 📌", reply_markup=keyboard)
     elif len(controller.employee_exists(message.from_user.id)) > 0:
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
             telebot.types.InlineKeyboardButton("Charge ⚡", callback_data=""),
             telebot.types.InlineKeyboardButton("Repair 🛠️", callback_data="")
         )
-        bot.send_message(message.chat.id, text="Please use the menu 📋", reply_markup=keyboard)
+        bot.send_message(message.chat.id, text="Menu 📌", reply_markup=keyboard)
     else:
-        bot.send_message(message.chat.id, "Please use the menu 📋")
+        bot.send_message(message.chat.id, "Please register first 🔑")
 
 
 @bot.message_handler(content_types=['text'])
@@ -284,7 +286,7 @@ def rent_by_id(message):
         rent_handler(message.text)
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(telebot.types.InlineKeyboardButton("End ride 🏁", callback_data="end_ride"))
-        bot.send_message(message.chat.id, "Use the button below to end ride ⬇️", reply_markup=keyboard)
+        bot.send_message(message.chat.id, "Use the button below to end ride ⬇", reply_markup=keyboard)
 
 
 def user_surname(message):
@@ -374,9 +376,12 @@ def current_user_location(message):
         def get_first(elem):
             return elem[0]
 
-        for scooter in all_scooters:
-            scooters.append([round(geodesic((latitude, longitude), (scooter.latitude, scooter.longitude)).meters),
-                             scooter])
+        for vehicle in controller.get_all_vehicles_for_user():
+            vehicle = Vehicle.Vehicle(vehicle[0], vehicle[1], vehicle[2], vehicle[3], vehicle[4], vehicle[5],
+                                      vehicle[6], vehicle[7], vehicle[8])
+            scooters.append([round(geodesic((latitude, longitude), (vehicle.latitude, vehicle.longitude)).meters),
+                             vehicle])
+
         scooters.sort(key=get_first)
 
         del scooters[3:]
@@ -392,6 +397,7 @@ def current_user_location(message):
                     callback_data="send_scooter_location|" + str(scooter.latitude) + "|" + str(
                         scooter.longitude) + "|" + str(scooter.identifier)))
         bot.send_message(message.chat.id, "Nearest scooters", reply_markup=keyboard)
+
     except AttributeError:
         bot.send_message(message.chat.id, "Wrong input, try again ❌")
         bot.register_next_step_handler(message, current_user_location)
@@ -401,13 +407,36 @@ def current_user_location_ride_end(message):
     try:
         latitude = message.location.latitude
         longitude = message.location.longitude
-        keyboard = telebot.types.InlineKeyboardMarkup()
-        for card in current_user.cards:
-            keyboard.row().add(
-                telebot.types.InlineKeyboardButton(card.name,
-                                                   callback_data="end_rent|" + str(latitude) + "|" + str(longitude)))
-        message = bot.send_message(message.chat.id, "Choose card to pay", reply_markup=keyboard)
-        bot.register_next_step_handler(message, default)
+
+        zone_id = None
+        for zone in controller.get_all("allowed_zone"):
+            if round(geodesic((latitude, longitude), (zone[1], zone[2])).meters) < zone[3]:
+                zone_id = zone[0]
+                break
+
+        if zone_id is None:
+            bot.send_message(message.chat.id,
+                             "You are out of allowed zone, please enter the allowed zone and try again")
+            bot.register_next_step_handler(message, current_user_location_ride_end)
+        else:
+            keyboard = telebot.types.InlineKeyboardMarkup()
+            for card in current_user.cards:
+                keyboard.row().add(
+                    telebot.types.InlineKeyboardButton(card.name,
+                                                       callback_data="end_rent|" + str(latitude) + "|" + str(
+                                                           longitude) + "|" + str(zone_id)))
+            duration = (datetime.now() - controller.get_ride(current_user, current_user.currently_used_vehicle)[0][
+                1]).total_seconds() // 60
+            current_user.bonus_points += duration // 5
+            price = 1 + duration // 60 * current_user.currently_used_vehicle.cents_per_minute / 100
+            if current_user.bonus_points >= round(price):
+                keyboard.row().add(
+                    telebot.types.InlineKeyboardButton("Pay with bonuses 🤑",
+                                                       callback_data="end_rent|" + str(latitude) + "|" + str(
+                                                           longitude) + "|" + str(zone_id) + "|" + str(price)))
+            message = bot.send_message(message.chat.id, "Ride price: " + str(price) + "$\nChoose payment method 💳",
+                                       reply_markup=keyboard)
+            bot.register_next_step_handler(message, default)
     except AttributeError:
         bot.send_message(message.chat.id, "Wrong input, try again ❌")
         bot.register_next_step_handler(message, current_user_location_ride_end)

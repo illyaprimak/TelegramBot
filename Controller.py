@@ -11,6 +11,7 @@ import Zone
 import Serve
 import datetime
 
+
 class Controller(object):
 
     def __init__(self, dbname, user, password, host):
@@ -44,7 +45,6 @@ class Controller(object):
         elif type(instance) == Serve.Serve:
             self.cursor.execute("INSERT INTO employee_serves_vehicle(employee_id,vehicle_id) VALUES(%s, %s)",
                                 (instance.employee_id, instance.vehicle_id))
-
         self.conn.commit()
 
     def serve_vehicle(self, vehicle_id):
@@ -52,13 +52,19 @@ class Controller(object):
         self.conn.commit()
 
     def repair_vehicle(self):
-        today = '\''+str(datetime.date.today().year)+'-'+str(datetime.date.today().month)+'-'+str(datetime.date.today().day)+'\''
-        sql = 'UPDATE vehicle SET last_tech_service = '+today+', technical_state=True WHERE vehicle_id IN(SELECT vehicle_id FROM employee_serves_vehicle WHERE serve_id IN(SELECT MAX(serve_id) FROM employee_serves_vehicle))'
+        today = '\'' + str(datetime.date.today().year) + '-' + str(datetime.date.today().month) + '-' + str(
+            datetime.date.today().day) + '\''
+        sql = 'UPDATE vehicle SET last_tech_service = ' + today + ', technical_state=True WHERE vehicle_id IN(SELECT vehicle_id FROM employee_serves_vehicle WHERE serve_id IN(SELECT MAX(serve_id) FROM employee_serves_vehicle))'
         self.cursor.execute(sql)
         self.conn.commit()
 
     def get_all(self, table_name):
         self.cursor.execute('SELECT * FROM ' + table_name)
+        return self.cursor.fetchall()
+
+    def get_all_vehicles_for_user(self):
+        self.cursor.execute(
+            'SELECT * FROM vehicle WHERE charge_level > 20 AND taken = false AND technical_state = true')
         return self.cursor.fetchall()
 
     def get_vehicle(self, identifier):
@@ -77,19 +83,19 @@ class Controller(object):
         self.cursor.execute('SELECT * FROM card WHERE user_id = ' + str(user.identifier))
         return self.cursor.fetchall()
 
-
     def get_specialization(self, identifier):
         self.cursor.execute('SELECT specialization FROM employee WHERE employee_id = ' + str(identifier))
         return self.cursor.fetchall()
 
-    def end_vehicle_rent(self, vehicle, latitude, longitude):
-        self.cursor.execute('UPDATE vehicle SET latitude = %s, longitude = %s, taken = %s WHERE vehicle_id = %s', (
-            latitude, longitude, bool(False), vehicle.identifier
-        ))
+    def end_vehicle_rent(self, vehicle, latitude, longitude, zone_id):
+        self.cursor.execute(
+            'UPDATE vehicle SET latitude = %s, longitude = %s, taken = %s, zone_id = %s WHERE vehicle_id = %s', (
+                latitude, longitude, bool(False), zone_id, vehicle.identifier
+            ))
 
     def add_ride(self, user, vehicle):
         self.cursor.execute('INSERT INTO user_uses_vehicle (start_time, user_id, vehicle_id) VALUES(%s, %s, %s)', (
-            datetime.now(), user.identifier, vehicle.identifier))
+            datetime.datetime.now(), user.identifier, vehicle.identifier))
         self.conn.commit()
 
         self.cursor.execute(
@@ -102,3 +108,15 @@ class Controller(object):
             (end_time, user.identifier, vehicle.identifier))
         self.conn.commit()
 
+    def get_ride(self, user, vehicle):
+        self.cursor.execute(
+            'SELECT * FROM user_uses_vehicle WHERE end_time IS NULL AND user_id = %s AND vehicle_id = %s', (
+                user.identifier, vehicle.identifier
+            ))
+        return self.cursor.fetchall()
+
+    def update_bonuses(self, user):
+        self.cursor.execute('UPDATE user_customer SET bonus_points = %s WHERE user_id = %s', (
+            user.bonus_points, user.identifier
+        ))
+        self.conn.commit()
