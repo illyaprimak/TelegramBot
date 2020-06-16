@@ -20,6 +20,7 @@ from telebot.types import ReplyKeyboardRemove, CallbackQuery
 from geopy.geocoders import Nominatim
 from datetime import datetime
 from Controller import Controller
+import datetime
 
 controller = Controller("d6ib69jeupvh36", "szvriplnadxleq",
                         "3f6a5c41af6e1ea4a4cc136566588d23fc243823e23a4c2498de18c01865ac3a",
@@ -30,7 +31,6 @@ bot = telebot.TeleBot('1198725614:AAECjKvTD7fpK_rO21vxsBpNYwKgJJluxC8')
 current_user = User.User()
 current_employee = Employee.Employee()
 
-
 def insert_user():
     controller.insert(current_user)
     for card in current_user.cards:
@@ -39,16 +39,22 @@ def insert_user():
 
 def rent_handler(vehicle_identifier):
     current_vehicle = controller.get_vehicle(vehicle_identifier)[0]
-    current_vehicle = Vehicle.Vehicle(current_vehicle[0], current_vehicle[1], current_vehicle[2], current_vehicle[3],
-                                      current_vehicle[4], current_vehicle[5], current_vehicle[6], current_vehicle[7],
-                                      current_vehicle[8])
-    controller.add_ride(current_user, current_vehicle)
-    current_user.currently_used_vehicle = current_vehicle
+    current_vehicle = Vehicle.Vehicle(current_vehicle[0], current_vehicle[1], current_vehicle[2],
+                                      current_vehicle[3], current_vehicle[4], current_vehicle[5],
+                                      current_vehicle[6], current_vehicle[7], current_vehicle[8])
+    if current_vehicle.taken is True:
+        return 1
+    elif current_vehicle.technical_state is False:
+        return 2
+    else:
+        controller.add_ride(current_user, current_vehicle)
+        current_user.currently_used_vehicle = current_vehicle
+        return 0
 
 
-def end_ride_handler(latitude, longitude, zone_id):
+def end_ride_handler(latitude, longitude, zone_id, payment):
     controller.end_vehicle_rent(current_user.currently_used_vehicle, latitude, longitude, zone_id)
-    controller.end_ride(datetime.now(), current_user, current_user.currently_used_vehicle)
+    controller.end_ride(datetime.now(), current_user, current_user.currently_used_vehicle, payment)
     current_user.currently_used_vehicle = None
 
 
@@ -73,25 +79,34 @@ def start_message(message):
                          reply_markup=keyboard)
     elif len(employee) == 0:
         user = user[0]
-        current_user = User.User(user[0], user[1], user[2], user[3], user[4], user[5], user[6], user[7])
-        for card in controller.get_cards(current_user):
-            current_user.cards.append(Card.Card(card[1], card[2]))
+        if current_user.identifier is None:
+            current_user = User.User(user[0], user[1], user[2], user[3], user[4], user[5], user[6], user[7])
+            current_user.cards = []
+            for card in controller.get_cards(current_user):
+                current_user.cards.append(Card.Card(card[1], card[2]))
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row().add(
-            telebot.types.InlineKeyboardButton("See nearest scooters 🗺️", callback_data="nearest_scooters"))
+            telebot.types.InlineKeyboardButton("Nearest scooters 🗺️", callback_data="nearest_scooters"))
+        if current_user.currently_used_vehicle is None:
+            keyboard.row().add(
+                telebot.types.InlineKeyboardButton("Start a ride 🛴", callback_data="rent_scooter"))
         keyboard.row().add(
-            telebot.types.InlineKeyboardButton("Start a ride 🛴", callback_data="rent_scooter"))
+            telebot.types.InlineKeyboardButton("All my rides 🗒️", callback_data="all_rides"))
+        keyboard.row().add(
+            telebot.types.InlineKeyboardButton("Total spent 💵", callback_data="all_expenses"))
         bot.send_message(message.chat.id, '👋 Hello, ' + current_user.name, reply_markup=keyboard)
     else:
         employee = employee[0]
         current_employee = Employee.Employee(employee[0], employee[1])
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
+
             telebot.types.InlineKeyboardButton("Statistic 📝",
                                                callback_data="statistic")
         )
         keyboard.row(
             telebot.types.InlineKeyboardButton("See nearest scooters 🗺️", callback_data="nearest_scooters")
+
         )
         bot.send_message(message.chat.id, '👋 Hello, employee', reply_markup=keyboard)
 
@@ -164,9 +179,27 @@ def register(call):
 def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
-    message = bot.send_message(call.message.chat.id,
-                               "Enter the scooter's unique code")
+    message = bot.send_message(call.message.chat.id, "Enter the scooter's unique code")
     bot.register_next_step_handler(message, rent_by_id)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "all_expenses")
+def register(call):
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    bot.send_message(call.message.chat.id,
+                     "You have spent " + controller.get_payments_sum(current_user)[0][1] + " in total 💵")
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "all_rides")
+def register(call):
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    message = ''
+    for ride in controller.get_users_rides(current_user):
+        message += '👉 ' + ride[0].strftime("%m/%d/%Y") + " " + str(
+            int((ride[1] - ride[0]).total_seconds() // 60)) + "m " + str(ride[2]) + "\n"
+    bot.send_message(call.message.chat.id, message)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "end_ride")
@@ -247,11 +280,11 @@ def send_scooter_location(call):
     bot.delete_message(call.message.chat.id, call.message.message_id)
     latitude = float(call.data.split('|')[1])
     longitude = float(call.data.split('|')[2])
-    end_ride_handler(latitude, longitude, int(call.data.split('|')[3]))
+    end_ride_handler(latitude, longitude, int(call.data.split('|')[3]), float(call.data.split('|')[4]))
     reply = "Ride ended 🏁"
-    if len(call.data.split('|')) == 5:
+    if len(call.data.split('|')) == 6:
         current_user.bonus_points -= int(float(call.data.split('|')[4]))
-        reply += "\nYou have spent " + str(int(float(call.data.split('|')[4]))) + " bonusesб " + str(
+        reply += "\nYou have spent " + str(int(float(call.data.split('|')[4]))) + " bonuses, " + str(
             int(float(current_user.bonus_points))) + " left"
         controller.update_bonuses(current_user)
 
@@ -310,11 +343,23 @@ def register(call):
 @bot.message_handler(content_types="text")
 def default(message):
     if len(controller.user_exists(message.from_user.id)) > 0:
+        user = controller.user_exists(message.from_user.id)[0]
+        global current_user
+        if current_user.identifier is None:
+            current_user = User.User(user[0], user[1], user[2], user[3], user[4], user[5], user[6], user[7])
+            current_user.cards = []
+            for card in controller.get_cards(current_user):
+                current_user.cards.append(Card.Card(card[1], card[2]))
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row().add(
-            telebot.types.InlineKeyboardButton("See nearest scooters 🗺️", callback_data="nearest_scooters"))
+            telebot.types.InlineKeyboardButton("Nearest scooters 🗺️", callback_data="nearest_scooters"))
+        if current_user.currently_used_vehicle is None:
+            keyboard.row().add(
+                telebot.types.InlineKeyboardButton("Start a ride 🛴", callback_data="rent_scooter"))
         keyboard.row().add(
-            telebot.types.InlineKeyboardButton("Start a ride 🛴", callback_data="rent_scooter"))
+            telebot.types.InlineKeyboardButton("All my rides 🗒️", callback_data="all_rides"))
+        keyboard.row().add(
+            telebot.types.InlineKeyboardButton("Total spent 💵", callback_data="all_expenses"))
         bot.send_message(message.chat.id, text="Menu 📌", reply_markup=keyboard)
     elif len(controller.employee_exists(message.from_user.id)) > 0:
         spec = controller.get_specialization(message.from_user.id)[0][0]
@@ -354,10 +399,15 @@ def rent_by_id(message):
         bot.send_message(message.chat.id, "Wrong input, try again ❌")
         bot.register_next_step_handler(message, rent_by_id)
     elif message.text.isdigit():
-        rent_handler(message.text)
-        keyboard = telebot.types.InlineKeyboardMarkup()
-        keyboard.row(telebot.types.InlineKeyboardButton("End ride 🏁", callback_data="end_ride"))
-        bot.send_message(message.chat.id, "Use the button below to end ride ⬇", reply_markup=keyboard)
+        state = rent_handler(message.text)
+        if state == 0:
+            keyboard = telebot.types.InlineKeyboardMarkup()
+            keyboard.row(telebot.types.InlineKeyboardButton("End ride 🏁", callback_data="end_ride"))
+            bot.send_message(message.chat.id, "Use the button below to end the ride ⬇", reply_markup=keyboard)
+        if state == 1:
+            bot.send_message(message.chat.id, "It seems the scooter is already in use.\nPlease choose another one")
+        elif state == 2:
+            bot.send_message(message.chat.id, "It seems the scooter is broken or damaged.\nPlease choose another one")
 
 
 def user_surname(message):
@@ -506,20 +556,21 @@ def current_user_location_ride_end(message):
             bot.register_next_step_handler(message, current_user_location_ride_end)
         else:
             keyboard = telebot.types.InlineKeyboardMarkup()
-            for card in current_user.cards:
-                keyboard.row().add(
-                    telebot.types.InlineKeyboardButton(card.name,
-                                                       callback_data="end_rent|" + str(latitude) + "|" + str(
-                                                           longitude) + "|" + str(zone_id)))
             duration = (datetime.now() - controller.get_ride(current_user, current_user.currently_used_vehicle)[0][
                 1]).total_seconds() // 60
             current_user.bonus_points += duration // 5
             price = 1 + duration // 60 * current_user.currently_used_vehicle.cents_per_minute / 100
+            for card in current_user.cards:
+                keyboard.row().add(
+                    telebot.types.InlineKeyboardButton(card.name,
+                                                       callback_data="end_rent|" + str(latitude) + "|" + str(
+                                                           longitude) + "|" + str(zone_id) + "|" + str(price)))
             if current_user.bonus_points >= round(price):
                 keyboard.row().add(
                     telebot.types.InlineKeyboardButton("Pay with bonuses 🤑",
                                                        callback_data="end_rent|" + str(latitude) + "|" + str(
-                                                           longitude) + "|" + str(zone_id) + "|" + str(price)))
+                                                           longitude) + "|" + str(zone_id) + "|" + str(
+                                                           price) + "|" + "bonuses_payment"))
             message = bot.send_message(message.chat.id, "Ride price: " + str(price) + "$\nChoose payment method 💳",
                                        reply_markup=keyboard)
             bot.register_next_step_handler(message, default)
