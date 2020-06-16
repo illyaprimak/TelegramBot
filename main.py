@@ -100,9 +100,67 @@ def start_message(message):
         current_employee = Employee.Employee(employee[0], employee[1])
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
-            telebot.types.InlineKeyboardButton("Nearest scooters 🗺️", callback_data="nearest_scooters")
+
+            telebot.types.InlineKeyboardButton("Statistic 📝",
+                                               callback_data="statistic")
+        )
+        keyboard.row(
+            telebot.types.InlineKeyboardButton("See nearest scooters 🗺️", callback_data="nearest_scooters")
+
         )
         bot.send_message(message.chat.id, '👋 Hello, employee', reply_markup=keyboard)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "statistic")
+def statistic(call):
+    keyboard = telebot.types.InlineKeyboardMarkup()
+    keyboard.row(
+        telebot.types.InlineKeyboardButton("1",
+                                           callback_data="general")
+    )
+    keyboard.row(
+        telebot.types.InlineKeyboardButton("2",
+                                           callback_data="broken")
+    )
+    keyboard.row(
+        telebot.types.InlineKeyboardButton("3",
+                                           callback_data="area")
+    )
+    bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    message = bot.send_message(call.message.chat.id,
+                               "Choose statistic\n1.Get general statistic about your serves\n2.Get information about which was the last who ride on the broken bicicles\n3.Find employees who serve all vehicles in zones whose radius would be greater than the parameter",
+                               reply_markup=keyboard)
+
+
+# bot.register_next_step_handler(message, default)
+
+@bot.callback_query_handler(func=lambda call: call.data == "general")
+def general(call):
+    bot.answer_callback_query(call.id)
+    str1 = "General statistic:"
+    for row in controller.get_statistic(call.from_user.id):
+        str1 = str1 + "\nVehicle number: " + str(row[0]) + ", amount of your serves: " + str(
+            row[1]) + ", amount of all serves: " + str(row[2])
+    message = bot.send_message(call.message.chat.id, str1)
+    bot.register_next_step_handler(message, default)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "broken")
+def broken(call):
+    bot.answer_callback_query(call.id)
+    str1 = "General statistic:"
+    for row in controller.get_broken_users():
+        str1 = str1 + "\nUser name: " + str(row[0]) + ", user id: " + str(row[1])
+    message = bot.send_message(call.message.chat.id, str1)
+    bot.register_next_step_handler(message, default)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "area")
+def area(call):
+    bot.answer_callback_query(call.id)
+    message = bot.send_message(call.message.chat.id, "Enter radius of area")
+    bot.register_next_step_handler(message, radius_handler)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "nearest_scooters")
@@ -195,25 +253,25 @@ def send_scooter_location(call):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("charge_vehicle"))
 def charge(call):
     bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
     controller.insert(Serve.Serve(call.from_user.id, call.data.split('|')[1]))
-
-    spec = controller.get_specialization(call.from_user.id)[0][0]
-    bot.send_message(call.message.chat.id,
-                     "Your spec = " + str(spec) + ", vehicle id =" + call.data.split('|')[1],
-                     reply_markup=ReplyKeyboardRemove())
+    message = bot.send_message(call.message.chat.id,
+                               "Great job! You charged scooter with id = " + call.data.split('|')[1],
+                               reply_markup=ReplyKeyboardRemove())
     controller.serve_vehicle(call.data.split('|')[1])
+    #bot.register_next_step_handler(message, default)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("repair_vehicle"))
 def charge(call):
     bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
     controller.insert(Serve.Serve(call.from_user.id, call.data.split('|')[1]))
-
-    spec = controller.get_specialization(call.from_user.id)[0][0]
-    bot.send_message(call.message.chat.id,
-                     "Your spec = " + str(spec) + ", vehicle id =" + call.data.split('|')[1],
-                     reply_markup=ReplyKeyboardRemove())
+    message = bot.send_message(call.message.chat.id,
+                               "Great job! You repaired scooter with id = " + call.data.split('|')[1],
+                               reply_markup=ReplyKeyboardRemove())
     controller.repair_vehicle()
+    #bot.register_next_step_handler(message, default)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("end_rent"))
@@ -266,7 +324,8 @@ def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     controller.insert(current_employee)
-    bot.send_message(call.message.chat.id, "You are registered as charger ⚡")
+    message = bot.send_message(call.message.chat.id, "You are registered as charger ⚡")
+    # bot.register_next_step_handler(message , default)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "repairer")
@@ -275,7 +334,10 @@ def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     controller.insert(current_employee)
-    bot.send_message(call.message.chat.id, "You are registered as repairer 🛠️")
+    message = bot.send_message(call.message.chat.id, "You are registered as repairer 🛠️")
+
+
+# bot.register_next_step_handler(message, default)
 
 
 @bot.message_handler(content_types="text")
@@ -300,11 +362,22 @@ def default(message):
             telebot.types.InlineKeyboardButton("Total spent 💵", callback_data="all_expenses"))
         bot.send_message(message.chat.id, text="Menu 📌", reply_markup=keyboard)
     elif len(controller.employee_exists(message.from_user.id)) > 0:
+        spec = controller.get_specialization(message.from_user.id)[0][0]
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
-            telebot.types.InlineKeyboardButton("Charge ⚡", callback_data=""),
-            telebot.types.InlineKeyboardButton("Repair 🛠️", callback_data="")
+            telebot.types.InlineKeyboardButton("Statistic 📝",
+                                               callback_data="statistic")
         )
+        if spec is False:
+            keyboard.row(
+                telebot.types.InlineKeyboardButton("Charge ⚡",
+                                                   callback_data="nearest_scooters")
+            )
+        else:
+            keyboard.row(
+                telebot.types.InlineKeyboardButton("Repair 🛠️",
+                                                   callback_data="nearest_scooters")
+            )
         bot.send_message(message.chat.id, text="Menu 📌", reply_markup=keyboard)
     else:
         bot.send_message(message.chat.id, "Please register first 🔑")
@@ -370,6 +443,21 @@ def user_card(message):
     elif len(message.text) > 15:
         bot.send_message(message.chat.id, "Card name is too long, try again ❌")
         bot.register_next_step_handler(message, user_card)
+
+
+def radius_handler(message):
+    str1 = "Employees:"
+    print(str(controller.get_employee_by_zone_radius(message.text)))
+    for row in controller.get_employee_by_zone_radius(message.text):
+        if str(row[1]):
+            spec = "repairer"
+        else:
+            spec = "charger"
+
+        str1 = str1 + "\nEmployee id: " + str(row[0]) + ", employee specialization: " + spec
+
+    message = bot.send_message(message.chat.id, str1)
+    bot.register_next_step_handler(message, default)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "add_card")

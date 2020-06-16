@@ -123,7 +123,7 @@ class CallbackData:
 
 
 def create_calendar(
-    name: str = "calendar", year: int = None, month: int = None,
+        name: str = "calendar", year: int = None, month: int = None,
 ) -> InlineKeyboardMarkup:
     """
     Create a built in inline keyboard with calendar
@@ -163,8 +163,8 @@ def create_calendar(
             if day == 0:
                 row.append(InlineKeyboardButton(" ", callback_data=data_ignore))
             elif (
-                f"{now_day.day}.{now_day.month}.{now_day.year}"
-                == f"{day}.{month}.{year}"
+                    f"{now_day.day}.{now_day.month}.{now_day.year}"
+                    == f"{day}.{month}.{year}"
             ):
                 row.append(
                     InlineKeyboardButton(
@@ -220,12 +220,11 @@ def create_calendar(
         )
     )
 
-
     return keyboard
 
 
 def create_months_calendar(
-    name: str = "calendar", year: int = None
+        name: str = "calendar", year: int = None
 ) -> InlineKeyboardMarkup:
     """
     Creates a calendar with month selection
@@ -257,13 +256,13 @@ def create_months_calendar(
 
 
 def calendar_query_handler(
-    bot: TeleBot,
-    call: CallbackQuery,
-    name: str,
-    action: str,
-    year: int,
-    month: int,
-    day: int,
+        bot: TeleBot,
+        call: CallbackQuery,
+        name: str,
+        action: str,
+        year: int,
+        month: int,
+        day: int,
 ) -> None or datetime.datetime:
     """
     The method creates a new calendar if the forward or backward button is pressed
