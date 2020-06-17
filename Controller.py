@@ -67,9 +67,14 @@ class Controller(object):
             'SELECT * FROM vehicle WHERE charge_level > 20 AND taken = false AND technical_state = true')
         return self.cursor.fetchall()
 
-    def get_all_vehicles_for_employee(self):
+    def get_all_vehicles_for_charger(self):
         self.cursor.execute(
-            'SELECT * FROM vehicle WHERE (charge_level < 20 OR technical_state = false) AND taken = false')
+            'SELECT * FROM vehicle WHERE charge_level < 20 AND taken = false')
+        return self.cursor.fetchall()
+
+    def get_all_vehicles_for_repairer(self):
+        self.cursor.execute(
+            'SELECT * FROM vehicle WHERE technical_state = false AND taken = false')
         return self.cursor.fetchall()
 
     def get_vehicle(self, identifier):
@@ -93,11 +98,14 @@ class Controller(object):
         return self.cursor.fetchall()
 
     def get_statistic(self, identifier):
-        self.cursor.execute("CREATE OR REPLACE VIEW a AS SELECT vehicle_id,COUNT(employee_id) AS \"number1\" FROM employee_serves_vehicle WHERE employee_id IN(SELECT employee_id FROM employee WHERE employee_id = %s ) GROUP BY vehicle_id; CREATE OR REPLACE VIEW b AS SELECT vehicle_id,COUNT(*) AS \"number2\" FROM employee_serves_vehicle GROUP BY vehicle_id; SELECT a.vehicle_id, a.number1, b.number2 FROM A INNER JOIN B ON A.vehicle_id = B.vehicle_id; ", [identifier])
+        self.cursor.execute(
+            "CREATE OR REPLACE VIEW a AS SELECT vehicle_id,COUNT(employee_id) AS \"number1\" FROM employee_serves_vehicle WHERE employee_id IN(SELECT employee_id FROM employee WHERE employee_id = %s ) GROUP BY vehicle_id; CREATE OR REPLACE VIEW b AS SELECT vehicle_id,COUNT(*) AS \"number2\" FROM employee_serves_vehicle GROUP BY vehicle_id; SELECT a.vehicle_id, a.number1, b.number2 FROM A INNER JOIN B ON A.vehicle_id = B.vehicle_id; ",
+            [identifier])
         return self.cursor.fetchall()
 
     def get_broken_users(self):
-        self.cursor.execute("SELECT user_name,user_id FROM user_customer WHERE user_id IN( SELECT user_id FROM user_uses_vehicle WHERE end_time  IN( SELECT MAX(end_time) AS max_time FROM user_uses_vehicle WHERE vehicle_id IN( SELECT vehicle_id  FROM vehicle WHERE technical_state = False) GROUP BY vehicle_id	 ))")
+        self.cursor.execute(
+            "SELECT user_name,user_id FROM user_customer WHERE user_id IN( SELECT user_id FROM user_uses_vehicle WHERE end_time  IN( SELECT MAX(end_time) AS max_time FROM user_uses_vehicle WHERE vehicle_id IN( SELECT vehicle_id  FROM vehicle WHERE technical_state = False) GROUP BY vehicle_id	 ))")
         return self.cursor.fetchall()
 
     def get_employee_by_zone_radius(self, radius):
@@ -106,7 +114,10 @@ class Controller(object):
             (
                 [radius]
             ))
-        return self.cursor.fetchall()
+        try:
+            return self.cursor.fetchall()
+        except:
+            return []
 
     def end_vehicle_rent(self, vehicle, latitude, longitude, zone_id):
         self.cursor.execute(
@@ -152,13 +163,5 @@ class Controller(object):
         self.cursor.execute(
             'SELECT start_time, end_time, payment FROM user_uses_vehicle WHERE payment IS NOT NULL AND user_id = %s', (
                 [user.identifier]
-            ))
-        return self.cursor.fetchall()
-
-    def get_employee_by_zone_radius(self, radius):
-        self.cursor.execute(
-            'SELECT * FROM employee AS E WHERE NOT EXISTS ( SELECT * FROM vehicle AS V WHERE zone_id IN(SELECT zone_id FROM allowed_zone WHERE radius < %s) AND NOT EXISTS (SELECT * FROM employee_serves_vehicle AS S WHERE S.employee_id = E.employee_id AND S.vehicle_id = V.vehicle_id))',
-            (
-                [radius]
             ))
         return self.cursor.fetchall()

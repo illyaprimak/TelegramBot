@@ -38,7 +38,10 @@ def insert_user():
 
 
 def rent_handler(vehicle_identifier):
-    current_vehicle = controller.get_vehicle(vehicle_identifier)[0]
+    current_vehicle = controller.get_vehicle(vehicle_identifier)
+    if len(current_vehicle) == 0:
+        return 3
+    current_vehicle = current_vehicle[0]
     current_vehicle = Vehicle.Vehicle(current_vehicle[0], current_vehicle[1], current_vehicle[2],
                                       current_vehicle[3], current_vehicle[4], current_vehicle[5],
                                       current_vehicle[6], current_vehicle[7], current_vehicle[8])
@@ -185,8 +188,11 @@ def register(call):
 def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.send_message(call.message.chat.id,
-                     "You have spent " + controller.get_payments_sum(current_user)[0][1] + " in total 💵")
+    if len(controller.get_payments_sum(current_user)) > 0:
+        bot.send_message(call.message.chat.id,
+                         "You have spent " + controller.get_payments_sum(current_user)[0][1] + " in total 💵")
+    else:
+        bot.send_message(call.message.chat.id, "It seems you do not have completed rides yet")
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "all_rides")
@@ -194,9 +200,13 @@ def register(call):
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     message = ''
-    for ride in controller.get_users_rides(current_user):
-        message += '👉 ' + ride[0].strftime("%m/%d/%Y") + " " + str(
-            int((ride[1] - ride[0]).total_seconds() // 60)) + "m " + str(ride[2]) + "\n"
+    rides = controller.get_users_rides(current_user)
+    if len(rides) != 0:
+        for ride in rides:
+            message += '👉 ' + ride[0].strftime("%m/%d/%Y") + " " + str(
+                int((ride[1] - ride[0]).total_seconds() // 60)) + "m " + str(ride[2]) + "\n"
+    else:
+        message = "It seems you do not have completed rides yet"
     bot.send_message(call.message.chat.id, message)
 
 
@@ -354,13 +364,16 @@ def default(message):
             telebot.types.InlineKeyboardButton("Total spent 💵", callback_data="all_expenses"))
         bot.send_message(message.chat.id, text="Menu 📌", reply_markup=keyboard)
     elif len(controller.employee_exists(message.from_user.id)) > 0:
-        spec = controller.get_specialization(message.from_user.id)[0][0]
+        employee = controller.employee_exists(message.from_user.id)
+        employee = employee[0]
+        global current_employee
+        current_employee = Employee.Employee(employee[0], employee[1])
         keyboard = telebot.types.InlineKeyboardMarkup()
         keyboard.row(
             telebot.types.InlineKeyboardButton("Statistic 📝",
                                                callback_data="statistic")
         )
-        if spec is False:
+        if current_employee.specialization is False:
             keyboard.row(
                 telebot.types.InlineKeyboardButton("Charge ⚡",
                                                    callback_data="nearest_scooters")
@@ -390,7 +403,7 @@ def rent_by_id(message):
     if message.text is None:
         bot.send_message(message.chat.id, "Wrong input, try again ❌")
         bot.register_next_step_handler(message, rent_by_id)
-    elif message.text.isdigit():
+    else:
         state = rent_handler(message.text)
         if state == 0:
             keyboard = telebot.types.InlineKeyboardMarkup()
@@ -400,6 +413,9 @@ def rent_by_id(message):
             bot.send_message(message.chat.id, "It seems the scooter is already in use.\nPlease choose another one")
         elif state == 2:
             bot.send_message(message.chat.id, "It seems the scooter is broken or damaged.\nPlease choose another one")
+        elif state == 3:
+            bot.send_message(message.chat.id,
+                             "Scooter with the code specified is not found.\nPlease check the code and try again")
 
 
 def user_surname(message):
@@ -438,18 +454,20 @@ def user_card(message):
 
 
 def radius_handler(message):
-    str1 = "Employees:"
-    print(str(controller.get_employee_by_zone_radius(message.text)))
-    for row in controller.get_employee_by_zone_radius(message.text):
-        if str(row[1]):
-            spec = "repairer"
-        else:
-            spec = "charger"
+    try:
+        str1 = "Employees:"
+        for row in controller.get_employee_by_zone_radius(int(message.text)):
+            if str(row[1]):
+                spec = "repairer"
+            else:
+                spec = "charger"
+            str1 = str1 + "\nEmployee id: " + str(row[0]) + ", employee specialization: " + spec
 
-        str1 = str1 + "\nEmployee id: " + str(row[0]) + ", employee specialization: " + spec
-
-    message = bot.send_message(message.chat.id, str1)
-    bot.register_next_step_handler(message, default)
+        message = bot.send_message(message.chat.id, str1)
+        bot.register_next_step_handler(message, default)
+    except ValueError:
+        message = bot.send_message(message.chat.id, "Wrong input, please try again")
+        bot.register_next_step_handler(message, radius_handler)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "add_card")
@@ -509,7 +527,10 @@ def current_user_location(message):
         if current_user.identifier is not None:
             vehicles = controller.get_all_vehicles_for_user()
         elif current_employee.identifier is not None:
-            vehicles = controller.get_all_vehicles_for_employee()
+            if current_employee.specialization is False:
+                vehicles = controller.get_all_vehicles_for_charger()
+            elif current_employee.specialization is True:
+                vehicles = controller.get_all_vehicles_for_repairer()
 
         for vehicle in vehicles:
             vehicle = Vehicle.Vehicle(vehicle[0], vehicle[1], vehicle[2], vehicle[3], vehicle[4], vehicle[5],
@@ -523,16 +544,30 @@ def current_user_location(message):
 
         for scooter in scooters:
             scooter = scooter[1]
+            text = ""
+            if current_user.identifier is not None:
+                text = "🛴 🗺️ " + str(
+                    round(
+                        geodesic((latitude, longitude), (scooter.latitude, scooter.longitude)).meters)) + "m 🔋 " + str(
+                    scooter.charge_level) + "% " + str(scooter.cents_per_minute) + "¢/min"
+            elif current_employee.identifier is not None:
+                if current_employee.specialization is False:
+                    text = "🛴 🗺️ " + str(
+                        round(
+                            geodesic((latitude, longitude),
+                                     (scooter.latitude, scooter.longitude)).meters)) + "m 🔋 " + str(
+                        scooter.charge_level) + "%"
+                elif current_employee.specialization is True:
+                    text = "🛴 🗺️ " + str(
+                        round(
+                            geodesic((latitude, longitude),
+                                     (scooter.latitude, scooter.longitude)).meters)) + "m 🔋 " + str(
+                        scooter.charge_level) + "% 🩹 Broken or damaged"
             keyboard.row().add(
-                telebot.types.InlineKeyboardButton(
-                    "🛴 🗺️ " + str(
-                        round(geodesic((latitude, longitude), (scooter.latitude, scooter.longitude)).meters)) +
-                    "m 🔋 " + str(scooter.charge_level) + "% "
-                    + str(scooter.cents_per_minute) + "¢/min",
-                    callback_data="send_scooter_location|" + str(scooter.latitude) + "|" + str(
-                        scooter.longitude) + "|" + str(scooter.identifier)))
+                telebot.types.InlineKeyboardButton(text, callback_data="send_scooter_location|" + str(
+                    scooter.latitude) + "|" + str(
+                    scooter.longitude) + "|" + str(scooter.identifier)))
         bot.send_message(message.chat.id, "Nearest scooters", reply_markup=keyboard)
-
     except AttributeError:
         bot.send_message(message.chat.id, "Wrong input, try again ❌")
         bot.register_next_step_handler(message, current_user_location)
