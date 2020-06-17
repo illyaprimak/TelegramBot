@@ -139,27 +139,36 @@ def statistic(call):
 @bot.callback_query_handler(func=lambda call: call.data == "general")
 def general(call):
     bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
     str1 = "General statistic:"
-    for row in controller.get_statistic(call.from_user.id):
-        str1 = str1 + "\nVehicle number: " + str(row[0]) + ", amount of your serves: " + str(
-            row[1]) + ", amount of all serves: " + str(row[2])
-    message = bot.send_message(call.message.chat.id, str1)
+    if len(controller.get_statistic(call.from_user.id)) == 0:
+        message = bot.send_message(call.message.chat.id, "There no vehicles that you serve")
+    else:
+        for row in controller.get_statistic(call.from_user.id):
+            str1 = str1 + "\nVehicle number: " + str(row[0]) + ", amount of your serves: " + str(
+                row[1]) + ", amount of all serves: " + str(row[2])
+        message = bot.send_message(call.message.chat.id, str1)
     bot.register_next_step_handler(message, default)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "broken")
 def broken(call):
     bot.answer_callback_query(call.id)
-    str1 = "General statistic:"
-    for row in controller.get_broken_users():
-        str1 = str1 + "\nUser name: " + str(row[0]) + ", user id: " + str(row[1])
-    message = bot.send_message(call.message.chat.id, str1)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    str1 = "Users who broke scooters:"
+    if len(controller.get_broken_users()) == 0:
+       message = bot.send_message(call.message.chat.id, "There no such users")
+    else:
+        for row in controller.get_broken_users():
+            str1 = str1 + "\nUser name: " + str(row[0]) + ", user id: " + str(row[1])
+        message = bot.send_message(call.message.chat.id, str1)
     bot.register_next_step_handler(message, default)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "area")
 def area(call):
     bot.answer_callback_query(call.id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
     message = bot.send_message(call.message.chat.id, "Enter radius of area")
     bot.register_next_step_handler(message, radius_handler)
 
@@ -456,15 +465,18 @@ def user_card(message):
 def radius_handler(message):
     try:
         str1 = "Employees:"
-        for row in controller.get_employee_by_zone_radius(int(message.text)):
-            if str(row[1]):
-                spec = "repairer"
-            else:
-                spec = "charger"
-            str1 = str1 + "\nEmployee id: " + str(row[0]) + ", employee specialization: " + spec
+        if len(controller.get_employee_by_zone_radius(int(message.text))) == 0:
+            message = bot.send_message(message.chat.id, "There no such employees")
+        else:
+            for row in controller.get_employee_by_zone_radius(int(message.text)):
+                if str(row[1]):
+                    spec = "repairer"
+                else:
+                    spec = "charger"
+                str1 = str1 + "\nEmployee id: " + str(row[0]) + ", employee specialization: " + spec
 
-        message = bot.send_message(message.chat.id, str1)
-        bot.register_next_step_handler(message, default)
+            message = bot.send_message(message.chat.id, str1)
+            bot.register_next_step_handler(message, default)
     except ValueError:
         message = bot.send_message(message.chat.id, "Wrong input, please try again")
         bot.register_next_step_handler(message, radius_handler)
